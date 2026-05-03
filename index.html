@@ -43,15 +43,15 @@
       </div>
     </div>
     <div class="setup-sec">
-      <div class="setup-label">録画開始までの征E��時閁E/div>
+      <div class="setup-label">録画開始までの待機時間</div>
       <div class="delay-row">
-        <button class="delay-btn" data-delay="3">3私E/button>
-        <button class="delay-btn active" data-delay="5">5私E/button>
-        <button class="delay-btn" data-delay="10">10私E/button>
+        <button class="delay-btn" data-delay="3">3秒</button>
+        <button class="delay-btn active" data-delay="5">5秒</button>
+        <button class="delay-btn" data-delay="10">10秒</button>
       </div>
     </div>
-    <div class="note">📌 三�Eにスマ�Eを固定し全身が映るよぁE��整してください、Ebr>計測頁E���E�P1 頭部安宁E/ P2 ラチE��ルスウェイ / P3 脊柱角度 / P4 X-ファクター / P6 キネ�EチE��チE��シーケンス / P9 フォローバランス</div>
-    <button class="btn-primary" id="btn-to-camera">カメラを起動すめEↁE/button>
+    <div class="note">📌 三脚にスマホを固定し全身が映るよう調整してください。<br>計測項目：P1 頭部安定 / P2 ラテラルスウェイ / P3 脊柱角度 / P4 X-ファクター / P6 キネマティックシーケンス / P9 フォローバランス</div>
+    <button class="btn-primary" id="btn-to-camera">カメラを起動する →</button>
   </div>
 </div>
 
@@ -59,21 +59,21 @@
 <div class="screen" id="screen-framing" style="flex-direction:column">
   <div class="hdr" style="background:rgba(22,27,34,.95)">
     <span class="hdr-logo">SWING.AI</span><span class="hdr-sub">フレーミング</span>
-    <span class="hdr-badge" id="cam-info"> E/span>
-    <button id="btn-flip-cam" style="background:none;border:1px solid #30363d;color:#c9d1d9;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;margin-left:4px">⟳ 刁E��</button>
+    <span class="hdr-badge" id="cam-info">—</span>
+    <button id="btn-flip-cam" style="background:none;border:1px solid #30363d;color:#c9d1d9;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;margin-left:4px">⟳ 切替</button>
   </div>
   <div style="flex:1"></div>
   <div class="cam-bottom">
     <div class="cam-info-row">
-      <span id="perf-badge"> Efps</span>
-      <span style="font-size:11px;color:#8b949e">全身が映るよぁE��整</span>
+      <span id="perf-badge">— fps</span>
+      <span style="font-size:11px;color:#8b949e">全身が映るよう調整</span>
     </div>
-    <div id="club-status" style="font-size:11px;color:#8b949e;text-align:center;padding:2px 0">クラブ検�E: 初期化征E��</div>
-    <div id="frame-banner" style="font-size:14px;font-weight:500;text-align:center;color:#e3b341;padding:4px 0">全身が映るよぁE��整してください</div>
+    <div id="club-status" style="font-size:11px;color:#8b949e;text-align:center;padding:2px 0">クラブ検出: 初期化待ち</div>
+    <div id="frame-banner" style="font-size:14px;font-weight:500;text-align:center;color:#e3b341;padding:4px 0">全身が映るよう調整してください</div>
     <div id="frame-progress-wrap" style="height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin:6px 0;display:none">
       <div id="frame-progress" style="height:100%;width:0%;background:#56d364;border-radius:3px;transition:width 0.1s linear"></div>
     </div>
-    <button class="btn-primary" id="btn-frame-ok" disabled style="margin-top:0">今すぐ開姁E/button>
+    <button class="btn-primary" id="btn-frame-ok" disabled style="margin-top:0">今すぐ開始</button>
   </div>
 </div>
 
@@ -85,7 +85,7 @@
   </div>
   <div style="flex:1"></div>
   <div class="rec-bottom">
-    <div id="rec-status" style="font-size:14px;color:#9ecfaa;text-align:center;margin-bottom:8px;font-weight:500">征E��中...</div>
+    <div id="rec-status" style="font-size:14px;color:#9ecfaa;text-align:center;margin-bottom:8px;font-weight:500">待機中...</div>
     <button class="btn-secondary" id="btn-cancel-rec">キャンセル</button>
   </div>
 </div>
@@ -102,15 +102,15 @@
       </div>
       <div class="phase-thumb" data-phase="backswing">
         <div class="thumb-fig"><img class="thumb-img" alt=""><div class="thumb-dot"></div></div>
-        <div class="thumb-name">チE��ク<br>バック</div>
+        <div class="thumb-name">テイク<br>バック</div>
       </div>
       <div class="phase-thumb" data-phase="top">
         <div class="thumb-fig"><img class="thumb-img" alt=""><div class="thumb-dot"></div></div>
-        <div class="thumb-name">トッチE/div>
+        <div class="thumb-name">トップ</div>
       </div>
       <div class="phase-thumb" data-phase="downswing">
         <div class="thumb-fig"><img class="thumb-img" alt=""><div class="thumb-dot"></div></div>
-        <div class="thumb-name">インパクチE/div>
+        <div class="thumb-name">インパクト</div>
       </div>
       <div class="phase-thumb" data-phase="follow">
         <div class="thumb-fig"><img class="thumb-img" alt=""><div class="thumb-dot"></div></div>
@@ -120,7 +120,7 @@
 
     <div class="viewer-wrap">
       <div style="padding:6px 12px 2px;display:flex;justify-content:space-between">
-        <span id="viewer-phase-label" style="font-size:10px;color:#9ecfaa;letter-spacing:.05em"> E/span>
+        <span id="viewer-phase-label" style="font-size:10px;color:#9ecfaa;letter-spacing:.05em">—</span>
         <span id="viewer-frame-num" style="font-size:10px;color:#3d6347">0/0</span>
       </div>
       <div style="padding:0 10px 4px">
@@ -133,7 +133,7 @@
       <div class="panel-hdr">
         <div class="panel-title">問題点</div>
         <div class="filter-row">
-          <span class="filter-label">悩み別�E�E/span>
+          <span class="filter-label">悩み別：</span>
           <select id="filter-sel"></select>
         </div>
       </div>
@@ -141,12 +141,12 @@
       <div class="prim-card">
         <div class="prim-hdr">
           <span class="prim-label" id="prim-label">解析中...</span>
-          <span class="status-chip unknown" id="prim-status"> E/span>
+          <span class="status-chip unknown" id="prim-status">—</span>
         </div>
-        <div class="prim-problem" id="prim-problem" style="margin-bottom:8px"> E/div>
+        <div class="prim-problem" id="prim-problem" style="margin-bottom:8px">—</div>
         <div class="hint-card">
-          <div class="hint-label">改喁E��ンチE/div>
-          <div class="hint-text" id="prim-hint"> E/div>
+          <div class="hint-label">改善ヒント</div>
+          <div class="hint-text" id="prim-hint">—</div>
         </div>
       </div>
 
@@ -156,8 +156,8 @@
 
   </div>
   <div class="result-actions">
-    <button class="btn-primary" id="btn-another">▶ もう1琁E/button>
-    <button class="btn-secondary" id="btn-retry">最初かめE/button>
+    <button class="btn-primary" id="btn-another">▶ もう1球</button>
+    <button class="btn-secondary" id="btn-retry">最初から</button>
   </div>
 </div>
 

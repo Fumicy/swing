@@ -1,10 +1,10 @@
-// ClubDetector  Eclub head position estimation (display only, not used for phase detection)
+// ClubDetector — club head position estimation (display only, not used for phase detection)
 //
 // Three-tier pipeline, best-confidence result wins:
 //
-// Tier 1  YOLO (models/club_yolo8n.onnx)  Ehighest precision when model available
-// Tier 2  ShaftDiffTracker                Ebody-masked frame diff + shaft line verify
-// Tier 3  IK extension                    Eforearm extension, self-calibrated at address
+// Tier 1  YOLO (models/club_yolo8n.onnx) — highest precision when model available
+// Tier 2  ShaftDiffTracker               — body-masked frame diff + shaft line verify
+// Tier 3  IK extension                   — forearm extension, self-calibrated at address
 
 import { getLM } from './utils.js?v=0503-17';
 
@@ -15,15 +15,15 @@ const CONF_THRESH = 0.35;
 // ─── Tier 2: Shaft-line diff tracker ──────────────────────────────────────
 //
 // Algorithm per frame:
-//  1. Compute luma frame diff at SD_SIZE ÁESD_SIZE
+//  1. Compute luma frame diff at SD_SIZE × SD_SIZE
 //  2. Zero-out pixels near each body landmark (body motion suppression)
-//  3. Find global diff peak ↁEclub head candidate
+//  3. Find global diff peak → club head candidate
 //  4. Sample along the grip→candidate line; if ≥25% of samples are "hot"
 //     the shaft is confirmed and the detection is returned
 //
 // Body mask indices: key joints that move visibly during a swing.
 // Using raw landmark access (visibility ≥ 0.2) so even partially-seen
-// joints are masked  Ewe want to suppress body, not detect it.
+// joints are masked — we want to suppress body, not detect it.
 
 const SD_SIZE   = 80;
 const SD_THRESH = 10;  // minimum diff value to count as "active" (0-255)
@@ -123,7 +123,7 @@ class ShaftDiffTracker {
 // ─── Tier 3: IK extension (forearm bone extended to club head) ─────────────
 //
 // Self-calibration at ADDRESS:
-//   Solve forearm unit-vector projected to ankle level ↁEclub length ratio.
+//   Solve forearm unit-vector projected to ankle level → club length ratio.
 //   Averages 5 frames; after calibration conf=0.58 > motion tracker at rest.
 //   Pre-calibration uses DEFAULT_CLUB_RATIO as a reasonable prior.
 
@@ -147,7 +147,7 @@ class IKExtension {
     const groundY = (la.y + ra.y) / 2;
 
     const dy = wy - ey;
-    if (dy < 0.03) return; // forearm not pointing downward  Enot address posture
+    if (dy < 0.03) return; // forearm not pointing downward — not address posture
 
     const L = Math.sqrt((wx - ex) ** 2 + (wy - ey) ** 2);
     if (L < 0.01) return;
@@ -210,7 +210,7 @@ export class ClubDetector {
     if (this.loading || this.ready) return;
     this.loading = true;
     try {
-      if (typeof ort === 'undefined') throw new Error('onnxruntime-web が未ローチE);
+      if (typeof ort === 'undefined') throw new Error('onnxruntime-web が未ロード');
       this.session = await ort.InferenceSession.create(MODEL_PATH, {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
@@ -227,7 +227,7 @@ export class ClubDetector {
     // IK calibration runs every address frame
     if (lms && phase === 'address') this._ik.calibrate(lms);
 
-    // Grip position (normalized 0-1) for YOLO box ↁEhead-corner conversion
+    // Grip position (normalized 0-1) for YOLO box → head-corner conversion
     const grip = this._grip(lms);
 
     // Tier 1: YOLO
@@ -331,9 +331,9 @@ export class ClubDetector {
   }
 
   get statusText() {
-    if (this.loading) return 'クラブ検�E: 読み込み中...';
-    if (this.ready)   return 'クラブ検�E: YOLO稼働中';
-    if (this.error)   return 'クラブ検�E: シャフト差刁EIK';
-    return 'クラブ検�E: 未初期匁E;
+    if (this.loading) return 'クラブ検出: 読み込み中...';
+    if (this.ready)   return 'クラブ検出: YOLO稼働中';
+    if (this.error)   return 'クラブ検出: シャフト差分+IK';
+    return 'クラブ検出: 未初期化';
   }
 }

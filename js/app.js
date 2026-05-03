@@ -188,12 +188,12 @@ class App {
       const s = this.stream.getVideoTracks()[0].getSettings();
       this.camFps = s.frameRate || 30;
       document.getElementById('cam-info').textContent =
-        `${s.width ?? '?'}ÁE{s.height ?? '?'} @ ${Math.round(this.camFps)}fps`;
+        `${s.width ?? '?'}×${s.height ?? '?'} @ ${Math.round(this.camFps)}fps`;
 
-      // Show camera preview immediately  Ebefore MediaPipe is ready
+      // Show camera preview immediately — before MediaPipe is ready
       this._startPreviewLoop(vid);
 
-      banner.textContent = '解析エンジンを読み込み中... (初回は10、E0秒かかりまぁE';
+      banner.textContent = '解析エンジンを読み込み中... (初回は10〜30秒かかります)';
       banner.style.color = '#e3b341';
 
       // Start YOLO model loading in parallel (non-blocking)
@@ -207,8 +207,8 @@ class App {
 
     } catch(e) {
       const msg =
-        e.name === 'NotAllowedError' ? 'カメラへのアクセスが拒否されました、Enブラウザの設定でカメラを許可してください、E :
-        e.name === 'NotFoundError'   ? 'カメラが見つかりません、E :
+        e.name === 'NotAllowedError' ? 'カメラへのアクセスが拒否されました。\nブラウザの設定でカメラを許可してください。' :
+        e.name === 'NotFoundError'   ? 'カメラが見つかりません。' :
         `カメラエラー (${e.name}): ${e.message}`;
       alert(msg);
       this._previewActive = false;
@@ -251,12 +251,12 @@ class App {
       const s = this.stream.getVideoTracks()[0].getSettings();
       this.camFps = s.frameRate || 30;
       document.getElementById('cam-info').textContent =
-        `${s.width ?? '?'}ÁE{s.height ?? '?'} @ ${Math.round(this.camFps)}fps`;
+        `${s.width ?? '?'}×${s.height ?? '?'} @ ${Math.round(this.camFps)}fps`;
       this.latestLms = null;
       this.latestFrameData = null;
       this.latestClub = null;
     } catch(e) {
-      alert('カメラ刁E��エラー: ' + e.message);
+      alert('カメラ切替エラー: ' + e.message);
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -265,7 +265,7 @@ class App {
   _initPose() {
     return new Promise((resolve, reject) => {
       if (typeof Pose === 'undefined') {
-        reject(new Error('MediaPipe Pose が読み込まれてぁE��せん'));
+        reject(new Error('MediaPipe Pose が読み込まれていません'));
         return;
       }
       this.pose = new Pose({
@@ -342,7 +342,7 @@ class App {
     }
 
     // Club detection at ~10fps (async, fire-and-forget)
-    // Run even when ONNX model unavailable  EClubDetector falls back to MotionTracker
+    // Run even when ONNX model unavailable — ClubDetector falls back to MotionTracker
     if (!this.clubDetector.loading && now - this.lastClubTime >= 100) {
       this.lastClubTime = now;
       this.clubDetector.detect(vid, this.latestLms, this.phaseDetector.phase)
@@ -374,7 +374,7 @@ class App {
 
     if (visible) {
       if (!this._framingAutoStarted) this._framingStable++;
-      const ratio = Math.min(this._framingStable / STABLE, 1);
+      const ratio   = Math.min(this._framingStable / STABLE, 1);
       const secLeft = Math.ceil((STABLE - this._framingStable) / 30);
 
       if (this._framingStable >= STABLE && !this._framingAutoStarted) {
@@ -384,8 +384,8 @@ class App {
       }
 
       const label = this._framingStable > 0
-        ? `✁EフレーミングOK  E${secLeft > 0 ? secLeft + '秒後に自動開姁E : '開始します…'}`
-        : '✁EフレーミングOK';
+        ? `✓ フレーミングOK — ${secLeft > 0 ? secLeft + '秒後に自動開始' : '開始します…'}`
+        : '✓ フレーミングOK';
       banner.textContent = label;
       banner.style.color = '#56d364';
       wrap.style.display = 'block';
@@ -394,7 +394,7 @@ class App {
       startBtn.onclick   = () => { this._framingAutoStarted = true; this._startCountdown(); };
     } else {
       this._framingStable = 0;
-      banner.textContent = '全身が映るよぁE��整してください';
+      banner.textContent = '全身が映るよう調整してください';
       banner.style.color = '#e3b341';
       wrap.style.display = 'none';
       bar.style.width    = '0%';
@@ -406,7 +406,7 @@ class App {
 
   _startCountdown() {
     this._showScreen('recording');
-    document.getElementById('rec-status').textContent = '征E��中...';
+    document.getElementById('rec-status').textContent = '待機中...';
     this.cdValue = this.delay;
     this._showCountdown(this.cdValue);
     this.cdTimer = setInterval(() => {
@@ -428,7 +428,7 @@ class App {
 
   _startRecording() {
     document.getElementById('countdown-num').style.display = 'none';
-    document.getElementById('rec-status').textContent = 'スイング征E��中...';
+    document.getElementById('rec-status').textContent = 'スイング待機中...';
 
     this.swingBuffer = [];
     this.phaseSnaps  = {};
@@ -471,7 +471,7 @@ class App {
     // Swing started
     if (phase !== PHASE.ADDRESS && !this.swingDetected) {
       this.swingDetected = true;
-      document.getElementById('rec-status').textContent = 'スイング検知 ✁E;
+      document.getElementById('rec-status').textContent = 'スイング検知 ✓';
     }
 
     // Swing complete
@@ -660,14 +660,14 @@ class App {
     const det = document.getElementById('result-detail');
     det.innerHTML = '';
     const rows = [
-      ['P1 頭部移動（最大�E�E, R.P1 ? `Δx ${(R.P1.peakX*100).toFixed(0)}%  Δy ${(R.P1.peakY*100).toFixed(0)}%�E�肩幁E��）` : ' E],
-      ['P2 ラチE��ルスウェイ�E�最大�E�E, R.P2 ? `${(R.P2.maxSway*100).toFixed(0)}%�E�肩幁E��）` : ' E],
-      ['P3 脊柱角度変化�E�最大�E�E, R.P3 ? `${R.P3.peakDelta.toFixed(1)}°${R.P3.earlyExt?' ⚠ アーリーエクスチE��ション検知':''}` : ' E],
-      ['P4 X-ファクター�E�トチE�E時！E, R.P4?.xFactor != null ? `${R.P4.xFactor.toFixed(0)}°�E�目樁E12°以上）` : ' E],
-      ['P6 腰→肩リード（ダウンスイング�E�E, R.P6?.lead != null ? `${R.P6.lead}フレーム先行（目樁E2フレーム以上）` : ' E],
-      ['P9 体重移動率', R.P9?.weightRatio != null ? `${(R.P9.weightRatio*100).toFixed(0)}%�E�目樁E85%以上）` : ' E],
-      ['P9 右かかと浮ぁE, R.P9?.heelDelta != null ? (R.P9.heelDelta < -0.02 ? 'あり ✁E : 'なぁE) : ' E],
-      ['P9 肩の回転完亁E, R.P9?.rotComp != null ? `${R.P9.rotComp.toFixed(0)}°�E�目樁E150°以上）` : ' E],
+      ['P1 頭部移動（最大）', R.P1 ? `Δx ${(R.P1.peakX*100).toFixed(0)}%  Δy ${(R.P1.peakY*100).toFixed(0)}%（肩幅比）` : '—'],
+      ['P2 ラテラルスウェイ（最大）', R.P2 ? `${(R.P2.maxSway*100).toFixed(0)}%（肩幅比）` : '—'],
+      ['P3 脊柱角度変化（最大）', R.P3 ? `${R.P3.peakDelta.toFixed(1)}°${R.P3.earlyExt?' ⚠ アーリーエクステンション検知':''}` : '—'],
+      ['P4 X-ファクター（トップ時）', R.P4?.xFactor != null ? `${R.P4.xFactor.toFixed(0)}°（目標:12°以上）` : '—'],
+      ['P6 腰→肩リード（ダウンスイング）', R.P6?.lead != null ? `${R.P6.lead}フレーム先行（目標:2フレーム以上）` : '—'],
+      ['P9 体重移動率', R.P9?.weightRatio != null ? `${(R.P9.weightRatio*100).toFixed(0)}%（目標:85%以上）` : '—'],
+      ['P9 右かかと浮き', R.P9?.heelDelta != null ? (R.P9.heelDelta < -0.02 ? 'あり ✓' : 'なし') : '—'],
+      ['P9 肩の回転完了', R.P9?.rotComp != null ? `${R.P9.rotComp.toFixed(0)}°（目標:150°以上）` : '—'],
     ];
     rows.forEach(([k, v]) => {
       const row = document.createElement('div');
@@ -744,7 +744,7 @@ class App {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function statusLabel(s) {
-  return { ok:'問題なぁE, warn:'注愁E, problem:'要改喁E, unknown:' E }[s] || ' E;
+  return { ok:'問題なし', warn:'注意', problem:'要改善', unknown:'—' }[s] || '—';
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
