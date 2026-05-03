@@ -1,3 +1,5 @@
+export const VERSION = '0503-4';
+
 // MediaPipe landmark indices
 export const LM = {
   NOSE:0, L_EAR:7, R_EAR:8,

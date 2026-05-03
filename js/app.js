@@ -2,7 +2,7 @@ import { PhaseDetector } from './phase.js';
 import { SwingAnalyzer }  from './analyzer.js';
 import { Renderer }       from './renderer.js';
 import {
-  PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS
+  PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
 } from './config.js';
 
 // ── App State ─────────────────────────────────────────────────────────────────
@@ -63,6 +63,11 @@ class App {
   // ── Setup screen ──────────────────────────────────────────────────────────
 
   _initUI() {
+    // Version badge
+    document.querySelectorAll('.hdr-sub').forEach(el => {
+      el.textContent += `  v${VERSION}`;
+    });
+
     // Concern tags
     const tagGrid = document.getElementById('tag-grid');
     TAGS.forEach(t => {
