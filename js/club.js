@@ -25,7 +25,7 @@ const CONF_THRESH = 0.35;
 
 const MT_SIZE   = 80;   // downscale resolution
 const MT_BLOCK  = 8;    // NMS block size (8×8 → 10×10 grid)
-const MT_THRESH = 12;   // mean abs-diff to report a detection (0-255)
+const MT_THRESH = 8;    // mean abs-diff to report a detection (0-255)
 
 class MotionTracker {
   constructor() {
@@ -76,7 +76,8 @@ class MotionTracker {
     const cx = (bestBx + 0.5) / blocks;
     const cy = (bestBy + 0.5) / blocks;
     const hw = 1 / blocks; // half-width ~= one block
-    const conf = Math.min(bestSum / 80, 0.65); // cap at 0.65 so YOLO takes priority
+    // Map mean diff 8→0.36, 80→0.65 so it clears the CONF_THRESH=0.35 gate
+    const conf = Math.min(0.35 + (bestSum - MT_THRESH) / 100, 0.65);
 
     return { x: cx, y: cy, w: hw * 2, h: hw * 2, conf, cls: 0 };
   }

@@ -1,5 +1,5 @@
-import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-10';
-import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-10';
+import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-11';
+import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-11';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 

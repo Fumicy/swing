@@ -1,10 +1,10 @@
-import { PhaseDetector } from './phase.js?v=0503-10';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-10';
-import { Renderer }       from './renderer.js?v=0503-10';
-import { ClubDetector }   from './club.js?v=0503-10';
+import { PhaseDetector } from './phase.js?v=0503-11';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-11';
+import { Renderer }       from './renderer.js?v=0503-11';
+import { ClubDetector }   from './club.js?v=0503-11';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-10';
+} from './config.js?v=0503-11';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -336,7 +336,8 @@ class App {
     }
 
     // Club detection at ~10fps (async, fire-and-forget)
-    if (this.clubDetector.ready && now - this.lastClubTime >= 100) {
+    // Run even when ONNX model unavailable — ClubDetector falls back to MotionTracker
+    if (!this.clubDetector.loading && now - this.lastClubTime >= 100) {
       this.lastClubTime = now;
       this.clubDetector.detect(vid).then(r => { this.latestClub = r ?? null; });
     }
