@@ -1,5 +1,5 @@
-import { getLM, Smoother } from './utils.js?v=0503-14';
-import { PHASE, THRESH } from './config.js?v=0503-14';
+import { getLM, Smoother } from './utils.js?v=0503-15';
+import { PHASE, THRESH } from './config.js?v=0503-15';
 
 // Phase detection: wrist centroid + Euclidean speed + position guards.
 // Pure pose-based — no club signal. Right-handed golfer, front camera assumed.

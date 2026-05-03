@@ -6,7 +6,7 @@
 // Tier 2  ShaftDiffTracker               — body-masked frame diff + shaft line verify
 // Tier 3  IK extension                   — forearm extension, self-calibrated at address
 
-import { getLM } from './utils.js?v=0503-14';
+import { getLM } from './utils.js?v=0503-15';
 
 const MODEL_PATH  = 'models/club_yolo8n.onnx';
 const INPUT_SIZE  = 320;
@@ -227,12 +227,15 @@ export class ClubDetector {
     // IK calibration runs every address frame
     if (lms && phase === 'address') this._ik.calibrate(lms);
 
+    // Grip position (normalized 0-1) for YOLO box → head-corner conversion
+    const grip = this._grip(lms);
+
     // Tier 1: YOLO
     if (this.ready && videoEl.videoWidth) {
       try {
         const tensor = this._preprocess(videoEl);
         const out    = await this.session.run({ images: tensor });
-        const yolo   = this._postprocess(out.output0);
+        const yolo   = this._postprocess(out.output0, grip);
         if (yolo) return yolo;
       } catch { /* fall through */ }
     }
@@ -262,7 +265,8 @@ export class ClubDetector {
     return new ort.Tensor('float32', t, [1, 3, sz, sz]);
   }
 
-  _postprocess(output) {
+  // grip: { x, y } normalized, or null
+  _postprocess(output, grip = null) {
     const d        = output.data;
     const numBoxes = output.dims[2];
     const nc       = output.dims[1] - 4;
@@ -283,7 +287,42 @@ export class ClubDetector {
         };
       }
     }
+    if (!best) return null;
+
+    // The model's bbox covers the full club (grip→head).
+    // cx,cy is the shaft midpoint. The club HEAD is at the bbox corner
+    // furthest from the grip position (nearest corner = grip end).
+    if (grip) {
+      const { x: cx, y: cy, w, h } = best;
+      const hw = w / 2, hh = h / 2;
+      const corners = [
+        { x: cx - hw, y: cy - hh },
+        { x: cx + hw, y: cy - hh },
+        { x: cx - hw, y: cy + hh },
+        { x: cx + hw, y: cy + hh },
+      ];
+      const head = corners.reduce((far, c) => {
+        const d = (c.x - grip.x) ** 2 + (c.y - grip.y) ** 2;
+        return d > far.d ? { x: c.x, y: c.y, d } : far;
+      }, { x: cx, y: cy, d: -1 });
+      best.x = Math.max(0, Math.min(1, head.x));
+      best.y = Math.max(0, Math.min(1, head.y));
+    }
     return best;
+  }
+
+  // Returns normalized grip position from wrist landmarks, or null.
+  _grip(lms) {
+    if (!lms) return null;
+    const lw = lms[15], rw = lms[16];
+    const lwOk = lw && (lw.visibility ?? 0) >= 0.3;
+    const rwOk = rw && (rw.visibility ?? 0) >= 0.3;
+    if (!lwOk && !rwOk) return null;
+    const n = (lwOk ? 1 : 0) + (rwOk ? 1 : 0);
+    return {
+      x: ((lwOk ? lw.x : 0) + (rwOk ? rw.x : 0)) / n,
+      y: ((lwOk ? lw.y : 0) + (rwOk ? rw.y : 0)) / n,
+    };
   }
 
   reset() {
