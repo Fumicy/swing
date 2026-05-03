@@ -8,59 +8,98 @@
 // detect(videoEl, lms, phase) returns the highest-confidence result across
 // all available tiers, or null if none exceed CONF_THRESH.
 
-import { getLM } from './utils.js?v=0503-12';
+import { getLM } from './utils.js?v=0503-13';
 
 const MODEL_PATH  = 'models/club_yolo8n.onnx';
 const INPUT_SIZE  = 320;
 const CONF_THRESH = 0.35;
 
-// ─── Tier 3: Pose-based estimator ─────────────────────────────────────────
-// Geometry: the club shaft is a continuation of the arm line.
-// shoulder_midpoint → wrist_midpoint = arm vector (length L)
-// club_head ≈ wrist + arm_unit × (L × 1.3)   (iron ≈ 1.2, driver ≈ 1.4)
+// ─── Tier 3: IK extension estimator ──────────────────────────────────────
+// Extends the skeleton's forearm bone (elbow→wrist) to find the club head.
+// The club shaft is anatomically aligned with the forearm at address, so
+// this is more accurate than using the whole-arm direction.
 //
-// Confidence is phase-dependent — highest at ADDRESS where the club
-// is static and the geometry is most predictable.
-const POSE_CONF = {
-  address: 0.52, backswing: 0.43, top: 0.38,
-  downswing: 0.37, follow: 0.41, complete: 0.47,
-};
+// Self-calibration at ADDRESS:
+//   We know the club head is at ground level (ankle Y) during address.
+//   Solve: wrist + forearm_unit × R = (?, groundY)  →  R = (groundY - wy) / (dy / L)
+//   Store R / L as a ratio so it stays valid when the camera distance changes.
+//   Uses a 5-frame average to filter noise.
+//
+// After calibration, conf rises to 0.58 (overrides MotionTracker at address,
+// yields to it during fast movement where motion conf reaches 0.65).
+
+const DEFAULT_CLUB_RATIO = 1.5; // iron ~1.5, driver ~1.9; used before calibration
 
 class PoseEstimator {
+  constructor() {
+    this._ratio  = null; // calibrated club_length / forearm_length
+    this._accR   = 0;
+    this._accN   = 0;
+  }
+
+  // Call every frame during ADDRESS phase to accumulate calibration data.
+  calibrate(lms) {
+    const lw = getLM(lms, 15), rw = getLM(lms, 16);
+    const le = getLM(lms, 13), re = getLM(lms, 14);
+    const la = getLM(lms, 27), ra = getLM(lms, 28);
+    if (!lw || !rw || !le || !re || !la || !ra) return;
+
+    const wx = (lw.x + rw.x) / 2, wy = (lw.y + rw.y) / 2;
+    const ex = (le.x + re.x) / 2, ey = (le.y + re.y) / 2;
+    const groundY = (la.y + ra.y) / 2;
+
+    const dy = wy - ey;
+    if (dy < 0.03) return; // wrists not meaningfully below elbows — not address posture
+
+    const L = Math.sqrt((wx - ex) ** 2 + (wy - ey) ** 2);
+    if (L < 0.01) return;
+
+    // R = distance from wrist to ground along forearm unit vector
+    // forearm_unit_y = dy / L  →  R = (groundY - wy) / (dy / L) = (groundY - wy) * L / dy
+    const R = (groundY - wy) * L / dy;
+    const ratio = R / L;
+    if (ratio < 0.8 || ratio > 3.0) return; // sanity: too short or impossibly long
+
+    this._accR += ratio;
+    this._accN++;
+    if (this._accN >= 5) {
+      this._ratio = this._accR / this._accN;
+    }
+  }
+
   estimate(lms, phase) {
     const lw = getLM(lms, 15), rw = getLM(lms, 16);
-    if (!lw && !rw) return null;
+    const le = getLM(lms, 13), re = getLM(lms, 14);
+    if ((!lw && !rw) || (!le && !re)) return null;
 
-    const ls = getLM(lms, 11), rs = getLM(lms, 12);
-    if (!ls || !rs) return null; // shoulders required for angle
-
-    // Grip = wrist centroid (use whichever are visible)
     const wx = lw && rw ? (lw.x + rw.x) / 2 : (lw ?? rw).x;
     const wy = lw && rw ? (lw.y + rw.y) / 2 : (lw ?? rw).y;
+    const ex = le && re ? (le.x + re.x) / 2 : (le ?? re).x;
+    const ey = le && re ? (le.y + re.y) / 2 : (le ?? re).y;
 
-    // Arm vector: shoulder midpoint → wrist midpoint
-    const sx = (ls.x + rs.x) / 2;
-    const sy = (ls.y + rs.y) / 2;
-    const dx = wx - sx, dy = wy - sy;
-    const armLen = Math.sqrt(dx * dx + dy * dy);
-    if (armLen < 0.02) return null;
+    const dx = wx - ex, dy = wy - ey;
+    const L = Math.sqrt(dx * dx + dy * dy);
+    if (L < 0.01) return null;
 
-    // Ground reference from ankles (LM27/28), fall back to fixed value
+    const ratio = this._ratio ?? DEFAULT_CLUB_RATIO;
+    const chx = Math.max(0, Math.min(1, wx + (dx / L) * L * ratio));
+    const chy = wy + (dy / L) * L * ratio;
+
+    // Ground clamp using ankles if visible
     const la = getLM(lms, 27), ra = getLM(lms, 28);
-    const groundY = la && ra ? (la.y + ra.y) / 2 + 0.01 : 0.92;
+    const groundY = la && ra ? (la.y + ra.y) / 2 : 0.92;
+    const cy = Math.max(wy, Math.min(chy, groundY + 0.02));
 
-    // Club head = wrist + arm_unit × club_shaft_length
-    // Ratio 1.3 ≈ avg iron shaft visible from grip to head / arm length
-    const ratio = 1.3;
-    let chx = wx + (dx / armLen) * armLen * ratio;
-    let chy = wy + (dy / armLen) * armLen * ratio;
+    // Higher confidence once calibrated; pre-calibration stays below MotionTracker max
+    const calibrated = this._ratio !== null;
+    const conf = calibrated ? 0.58 : 0.38;
+    return { x: chx, y: cy, w: 0.04, h: 0.04, conf, cls: 0 };
+  }
 
-    // Clamp: cannot go below ground or above hands
-    chy = Math.max(wy, Math.min(chy, groundY));
-    chx = Math.max(0, Math.min(1, chx));
-
-    const conf = POSE_CONF[phase] ?? 0.38;
-    return { x: chx, y: chy, w: 0.04, h: 0.04, conf, cls: 0 };
+  reset() {
+    this._ratio = null;
+    this._accR  = 0;
+    this._accN  = 0;
   }
 }
 
@@ -160,8 +199,11 @@ export class ClubDetector {
 
   // Returns best detection { x, y, w, h, conf, cls } (0-1 normalized).
   // lms: MediaPipe pose landmarks (optional, enables Tier 3).
-  // phase: current swing phase string (optional, tunes pose confidence).
+  // phase: current swing phase string (optional, drives calibration).
   async detect(videoEl, lms = null, phase = null) {
+    // Tier 3 calibration: accumulate address frames to measure club length
+    if (lms && phase === 'address') this._pose.calibrate(lms);
+
     // Tier 1: YOLO — if available, it wins immediately
     if (this.ready && videoEl.videoWidth) {
       try {
@@ -172,11 +214,10 @@ export class ClubDetector {
       } catch { /* fall through */ }
     }
 
-    // Tier 2+3: motion tracker and pose estimator run in parallel
+    // Tier 2+3: motion tracker and IK extension run in parallel; pick best conf
     const motionResult = this._motion.detect(videoEl);
     const poseResult   = lms ? this._pose.estimate(lms, phase) : null;
 
-    // Return highest-confidence non-null result
     const candidates = [motionResult, poseResult].filter(Boolean);
     if (!candidates.length) return null;
     return candidates.reduce((a, b) => a.conf >= b.conf ? a : b);
@@ -228,6 +269,7 @@ export class ClubDetector {
 
   reset() {
     this._motion.reset();
+    this._pose.reset();
   }
 
   get statusText() {
