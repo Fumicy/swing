@@ -1,10 +1,10 @@
-import { PhaseDetector } from './phase.js?v=0503-9';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-9';
-import { Renderer }       from './renderer.js?v=0503-9';
-import { ClubDetector }   from './club.js?v=0503-9';
+import { PhaseDetector } from './phase.js?v=0503-10';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-10';
+import { Renderer }       from './renderer.js?v=0503-10';
+import { ClubDetector }   from './club.js?v=0503-10';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-9';
+} from './config.js?v=0503-10';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -671,6 +671,7 @@ class App {
     if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
     this.phaseDetector.reset();
     this.analyzer.reset();
+    this.clubDetector.reset();
     this.swingBuffer = [];
     this.phaseSnaps  = {};
     this.results     = null;
@@ -684,6 +685,7 @@ class App {
     this._showScreen('framing');
     this.phaseDetector.reset();
     this.analyzer.reset();
+    this.clubDetector.reset();
     this.swingBuffer = [];
     this.phaseSnaps  = {};
     this.results     = null;
