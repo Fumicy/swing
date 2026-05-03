@@ -1,10 +1,10 @@
-import { PhaseDetector } from './phase.js?v=0503-17';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-17';
-import { Renderer }       from './renderer.js?v=0503-17';
-import { ClubDetector }   from './club.js?v=0503-17';
+import { PhaseDetector } from './phase.js?v=0503-18';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-18';
+import { Renderer }       from './renderer.js?v=0503-18';
+import { ClubDetector }   from './club.js?v=0503-18';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-17';
+} from './config.js?v=0503-18';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -363,9 +363,13 @@ class App {
   // ── Framing ───────────────────────────────────────────────────────────────
 
   _updateFramingUI(lms) {
-    const visible = [11,12,23,24,15,16].every(i =>
-      (lms[i]?.visibility ?? 0) > 0.5
-    );
+    // Shoulders + hips must both be visible (works from any angle).
+    // Wrists: only one required — from behind (飛球線後方) the trail wrist
+    // is often occluded by the body.
+    const vis = i => (lms[i]?.visibility ?? 0);
+    const visible = vis(11) > 0.5 && vis(12) > 0.5 &&
+                    vis(23) > 0.5 && vis(24) > 0.5 &&
+                    (vis(15) > 0.4 || vis(16) > 0.4);
     const banner   = document.getElementById('frame-banner');
     const startBtn = document.getElementById('btn-frame-ok');
     const wrap     = document.getElementById('frame-progress-wrap');
