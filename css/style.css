@@ -1,0 +1,115 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #0d1117; color: #e6edf3; font-family: system-ui, -apple-system, sans-serif; font-size: 14px; overflow: hidden; }
+
+/* ── Screen management ── */
+.screen { display: none; position: fixed; inset: 0; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ── Common header ── */
+.hdr { background: #161b22; border-bottom: 1px solid #30363d; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.hdr-logo { font-size: 16px; font-weight: 700; color: #58d678; letter-spacing: .05em; }
+.hdr-sub { font-size: 12px; color: #8b949e; flex: 1; }
+.hdr-badge { font-size: 11px; color: #3d6347; background: #0d2818; border: 1px solid #238636; padding: 2px 8px; border-radius: 12px; }
+
+/* ── Setup screen ── */
+.setup-body { flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 20px; background: #0d1117; }
+.setup-sec { display: flex; flex-direction: column; gap: 8px; }
+.setup-label { font-size: 11px; color: #8b949e; letter-spacing: .08em; text-transform: uppercase; }
+.tag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tag-btn { background: #161b22; border: 1px solid #30363d; color: #8b949e; border-radius: 10px; padding: 12px 10px; font-size: 13px; cursor: pointer; transition: all .12s; text-align: center; }
+.tag-btn.active { background: #0d2818; border-color: #238636; color: #56d364; font-weight: 500; }
+.angle-row { display: flex; gap: 8px; }
+.angle-btn { flex: 1; background: #161b22; border: 1px solid #30363d; color: #8b949e; border-radius: 10px; padding: 12px; font-size: 13px; cursor: pointer; transition: all .12s; text-align: center; }
+.angle-btn.active { background: #0d2818; border-color: #238636; color: #56d364; font-weight: 500; }
+.delay-row { display: flex; gap: 8px; }
+.delay-btn { flex: 1; background: #161b22; border: 1px solid #30363d; color: #8b949e; border-radius: 10px; padding: 10px; font-size: 13px; cursor: pointer; transition: all .12s; text-align: center; }
+.delay-btn.active { background: #1a3a24; border-color: #238636; color: #56d364; font-weight: 500; }
+.note { font-size: 11px; color: #8b949e; background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 10px 12px; line-height: 1.65; }
+.btn-primary { background: #238636; color: #fff; border: none; border-radius: 12px; padding: 15px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .12s; margin-top: auto; }
+.btn-primary:hover { background: #2ea043; }
+.btn-primary:disabled { background: #1a3a24; color: #3d6347; cursor: default; }
+.btn-secondary { background: #161b22; color: #8b949e; border: 1px solid #30363d; border-radius: 12px; padding: 12px; font-size: 14px; cursor: pointer; }
+
+/* ── Camera view (framing + recording) ── */
+.cam-wrap { flex: 1; position: relative; background: #010409; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+#vid { position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0; pointer-events: none; }
+#overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.cam-bottom { background: #161b22; border-top: 1px solid #30363d; padding: 12px 16px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.cam-info-row { display: flex; justify-content: space-between; align-items: center; }
+#cam-info { font-size: 11px; color: #3d6347; }
+#perf-badge { font-size: 11px; color: #e3b341; }
+#frame-banner { font-size: 14px; font-weight: 500; text-align: center; min-height: 20px; }
+
+/* ── Recording screen ── */
+.rec-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 100px; pointer-events: none; }
+#countdown-num { font-size: 96px; font-weight: 700; color: #58d678; opacity: .9; display: none; text-shadow: 0 2px 24px rgba(0,0,0,.6); }
+.rec-bottom { background: #161b22; border-top: 1px solid #30363d; padding: 12px 16px; flex-shrink: 0; }
+#rec-status { font-size: 14px; color: #9ecfaa; text-align: center; margin-bottom: 8px; font-weight: 500; }
+
+/* ── Results screen ── */
+.results-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; background: #0d1117; }
+
+/* Phase strip */
+.phase-strip { background: #161b22; padding: 10px 12px; display: flex; gap: 5px; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+.phase-thumb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; border-radius: 8px; padding: 4px 2px 5px; border: 1.5px solid transparent; transition: all .12s; }
+.phase-thumb.active { background: #0d1a11; border-color: #238636; }
+.thumb-fig { width: 46px; height: 44px; background: #0b1610; border-radius: 6px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.thumb-img { width: 100%; height: 100%; object-fit: cover; display: none; }
+.thumb-dot { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 50%; background: #555; }
+.thumb-name { font-size: 9px; color: #3d6347; text-align: center; line-height: 1.3; }
+.phase-thumb.active .thumb-name { color: #9ecfaa; }
+
+/* Viewer */
+.viewer-wrap { background: #121b14; flex-shrink: 0; }
+.viewer-top { padding: 5px 12px 0; display: flex; flex-direction: column; gap: 4px; }
+#viewer-phase-label { font-size: 10px; color: #9ecfaa; letter-spacing: .06em; }
+#scrubber { width: 100%; cursor: pointer; accent-color: #5ecb7a; }
+.viewer-canvas-wrap { position: relative; }
+#result-canvas { display: block; width: 100%; max-height: 200px; object-fit: contain; }
+
+/* Problem panel */
+.problem-panel { padding: 12px 14px; border-top: 1px solid #21262d; }
+.panel-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.panel-title { font-size: 11px; color: #8b949e; letter-spacing: .07em; text-transform: uppercase; }
+.filter-row { display: flex; align-items: center; gap: 6px; }
+.filter-label { font-size: 11px; color: #8b949e; }
+#filter-sel { background: #161b22; border: 1px solid #30363d; color: #c9d1d9; font-size: 11px; border-radius: 8px; padding: 4px 8px; cursor: pointer; }
+
+/* Primary feedback */
+.prim-card { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.prim-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.prim-label { font-size: 13px; font-weight: 500; color: #c9d1d9; }
+.status-chip { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+.status-chip.ok { background: #0d2818; color: #56d364; border: 1px solid #238636; }
+.status-chip.warn { background: #2d1f0a; color: #e3b341; border: 1px solid #9e6a03; }
+.status-chip.problem { background: #2d0f0f; color: #ff7b72; border: 1px solid #8b1a1a; }
+.status-chip.unknown { background: #1c2128; color: #8b949e; border: 1px solid #30363d; }
+.prim-problem { font-size: 12.5px; color: #e6edf3; line-height: 1.7; margin-bottom: 6px; }
+.hint-card { background: #0d1f14; border-radius: 8px; border-left: 3px solid #4ade80; padding: 8px 10px; }
+.hint-label { font-size: 10px; color: #3a7a4a; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 3px; }
+.hint-text { font-size: 12px; color: #c9d1d9; line-height: 1.6; }
+
+/* Principle chips */
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.p-chip { display: flex; flex-direction: column; padding: 7px 10px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; min-width: 70px; transition: all .12s; }
+.p-chip.ok      { background: #0d2818; border-color: #238636; }
+.p-chip.warn    { background: #2d1f0a; border-color: #9e6a03; }
+.p-chip.problem { background: #2d0f0f; border-color: #8b1a1a; }
+.p-chip.unknown { background: #161b22; border-color: #30363d; }
+.p-chip-label  { font-size: 11px; font-weight: 500; color: #c9d1d9; }
+.p-chip-status { font-size: 10px; margin-top: 2px; }
+.p-chip.ok      .p-chip-status { color: #56d364; }
+.p-chip.warn    .p-chip-status { color: #e3b341; }
+.p-chip.problem .p-chip-status { color: #ff7b72; }
+.p-chip.unknown .p-chip-status { color: #8b949e; }
+
+/* Detail table */
+.det-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #21262d; font-size: 12px; }
+.det-row:last-child { border-bottom: none; }
+.det-k { color: #8b949e; }
+.det-v { color: #c9d1d9; text-align: right; }
+
+/* Result actions */
+.result-actions { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid #21262d; flex-shrink: 0; background: #0d1117; }
+.result-actions .btn-primary { flex: 1; padding: 12px; font-size: 13px; margin: 0; }
+.result-actions .btn-secondary { flex: 1; padding: 12px; font-size: 13px; }
