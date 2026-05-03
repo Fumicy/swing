@@ -1,10 +1,10 @@
-import { PhaseDetector } from './phase.js?v=0503-18';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-18';
-import { Renderer }       from './renderer.js?v=0503-18';
-import { ClubDetector }   from './club.js?v=0503-18';
+import { PhaseDetector } from './phase.js?v=0503-19';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-19';
+import { Renderer }       from './renderer.js?v=0503-19';
+import { ClubDetector }   from './club.js?v=0503-19';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-18';
+} from './config.js?v=0503-19';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {

@@ -1,5 +1,5 @@
-import { getLM, Smoother } from './utils.js?v=0503-17';
-import { PHASE, THRESH } from './config.js?v=0503-17';
+import { getLM, Smoother } from './utils.js?v=0503-19';
+import { PHASE, THRESH } from './config.js?v=0503-19';
 
 // Phase detection: wrist centroid + Euclidean speed + position guards.
 // Club head data (from ClubDetector) is used as a secondary signal when available.
@@ -175,11 +175,13 @@ export class PhaseDetector {
 
       // ── FOLLOW ────────────────────────────────────────────────────────────
       case PHASE.FOLLOW:
-        if (speed < T.stopThresh) {
-          if (++this._stoppedFrames >= 6) this._setPhase(PHASE.COMPLETE);
+        if (speed < T.stopThresh * 2) {
+          if (++this._stoppedFrames >= 3) this._setPhase(PHASE.COMPLETE);
         } else {
           this._stoppedFrames = 0;
         }
+        // Safety: finish detected → complete within 1.5 s regardless
+        if (this._phaseFrames > 45) this._setPhase(PHASE.COMPLETE);
         break;
 
       case PHASE.COMPLETE:
