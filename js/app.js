@@ -28,7 +28,10 @@ class App {
     this.stream       = null;
     this.pose         = null;
     this.renderer     = null;
-    this._previewActive = false;
+    this._previewActive  = false;
+    this.facingMode      = 'environment';
+    this.latestLms       = null;
+    this.latestFrameData = null;
     this.phaseDetector = new PhaseDetector();
     this.analyzer     = new SwingAnalyzer();
 
@@ -104,6 +107,7 @@ class App {
     document.getElementById('btn-to-camera').onclick  = () => this._startCamera();
     document.getElementById('btn-retry').onclick      = () => this._reset();
     document.getElementById('btn-another').onclick    = () => this._goToRecording();
+    document.getElementById('btn-flip-cam').onclick   = () => this._flipCamera();
     document.getElementById('btn-cancel-rec').onclick = () => {
       if (this.cdTimer) { clearInterval(this.cdTimer); this.cdTimer = null; }
       document.getElementById('countdown-num').style.display = 'none';
@@ -161,7 +165,7 @@ class App {
 
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: 'environment' },
+          facingMode: { ideal: this.facingMode },
           frameRate:  { ideal: 30 },
           width:      { ideal: 1280 },
           height:     { ideal: 720 },
@@ -212,6 +216,38 @@ class App {
     requestAnimationFrame(loop);
   }
 
+  async _flipCamera() {
+    if (!this.stream) return;
+    this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
+    this.stream.getTracks().forEach(t => t.stop());
+    const vid = document.getElementById('vid');
+    const btn = document.getElementById('btn-flip-cam');
+    if (btn) btn.disabled = true;
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: this.facingMode },
+          frameRate:  { ideal: 30 },
+          width:      { ideal: 1280 },
+          height:     { ideal: 720 },
+        },
+        audio: false,
+      });
+      vid.srcObject = this.stream;
+      await vid.play();
+      const s = this.stream.getVideoTracks()[0].getSettings();
+      this.camFps = s.frameRate || 30;
+      document.getElementById('cam-info').textContent =
+        `${s.width ?? '?'}×${s.height ?? '?'} @ ${Math.round(this.camFps)}fps`;
+      this.latestLms = null;
+      this.latestFrameData = null;
+    } catch(e) {
+      alert('カメラ切替エラー: ' + e.message);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   _initPose() {
     return new Promise((resolve, reject) => {
       if (typeof Pose === 'undefined') {
@@ -243,8 +279,9 @@ class App {
 
     const W = vid.videoWidth, H = vid.videoHeight;
     this.renderer.resize(W, H);
-    this.frameCount++;
+    const ctx = this.renderer.ctx;
 
+    this.frameCount++;
     const now = performance.now();
     if (now - this.lastFpsTime >= 1000) {
       this.anFps = this.analyzeCount;
@@ -252,7 +289,31 @@ class App {
       this.lastFpsTime = now;
     }
 
-    // Throttle analysis to 30fps
+    // Always draw current video frame every RAF tick (prevents flicker)
+    ctx.drawImage(vid, 0, 0, W, H);
+
+    // Overlay latest MediaPipe results
+    const lms = this.latestLms;
+    if (lms) {
+      this.renderer.drawSkeleton(lms, this.latestFrameData);
+      if (this.state === AppState.RECORDING && this.latestFrameData) {
+        this.renderer.drawHeadIndicator(lms, this.latestFrameData.p1);
+        this.renderer.drawHipIndicator(lms, this.latestFrameData.p2);
+      }
+      if (this.state === AppState.RECORDING) {
+        this.renderer.drawPhaseLabel(this.activePhase);
+        this.renderer.drawRecordingDot();
+        if (this.swingDetected) this.renderer.drawSwingDetected();
+      }
+      if (this.state === AppState.FRAMING) {
+        this._updateFramingUI(lms);
+      }
+    }
+
+    this.renderer.drawFrameBudget(this.mpMs, this.mpMs);
+    this._updatePerfDisplay();
+
+    // Throttle MediaPipe to 30fps
     if (now - this.lastAnalyzeTime >= 33) {
       this.lastAnalyzeTime = now;
       this.analyzeCount++;
@@ -263,38 +324,13 @@ class App {
   }
 
   _onPoseResults(results) {
-    const vid  = document.getElementById('vid');
-    const lms  = results.poseLandmarks;
-    const ctx  = this.renderer.ctx;
-    const W    = this.renderer.canvas.width || vid.videoWidth;
-    const H    = this.renderer.canvas.height || vid.videoHeight;
-
-    this.renderer.resize(vid.videoWidth, vid.videoHeight);
-    ctx.drawImage(vid, 0, 0, W, H);
-
-    if (lms) {
-      const frameData = this.state === AppState.RECORDING
-        ? this._processFrame(lms) : null;
-
-      this.renderer.drawSkeleton(lms, frameData);
-
-      if (this.state === AppState.RECORDING) {
-        if (frameData) {
-          this.renderer.drawHeadIndicator(lms, frameData.p1);
-          this.renderer.drawHipIndicator(lms, frameData.p2);
-        }
-        this.renderer.drawPhaseLabel(this.activePhase);
-        this.renderer.drawRecordingDot();
-        if (this.swingDetected) this.renderer.drawSwingDetected();
-      }
-
-      if (this.state === AppState.FRAMING) {
-        this._updateFramingUI(lms);
-      }
+    const lms = results.poseLandmarks;
+    this.latestLms = lms || null;
+    if (lms && this.state === AppState.RECORDING) {
+      this.latestFrameData = this._processFrame(lms);
+    } else {
+      this.latestFrameData = null;
     }
-
-    this.renderer.drawFrameBudget(this.mpMs, this.mpMs);
-    this._updatePerfDisplay();
   }
 
   // ── Framing ───────────────────────────────────────────────────────────────
@@ -605,7 +641,9 @@ class App {
   }
 
   _reset() {
-    this._previewActive = false;
+    this._previewActive  = false;
+    this.latestLms       = null;
+    this.latestFrameData = null;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     if (this.cdTimer) clearInterval(this.cdTimer);
     if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }

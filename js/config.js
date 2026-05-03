@@ -1,4 +1,4 @@
-export const VERSION = '0503-4';
+export const VERSION = '0503-5';
 
 // MediaPipe landmark indices
 export const LM = {

@@ -14,8 +14,10 @@ export class Renderer {
   }
 
   resize(w, h) {
-    this.canvas.width  = w;
-    this.canvas.height = h;
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width  = w;
+      this.canvas.height = h;
+    }
   }
 
   clear() {
