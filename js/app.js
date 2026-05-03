@@ -593,6 +593,8 @@ class App {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const el = document.getElementById(`screen-${name}`);
     if (el) el.classList.add('active');
+    const camVisible = name === 'framing' || name === 'recording';
+    document.getElementById('cam-layer').classList.toggle('visible', camVisible);
     this.state = { setup:AppState.SETUP, framing:AppState.FRAMING,
       recording:AppState.RECORDING, results:AppState.RESULTS }[name] || this.state;
   }
