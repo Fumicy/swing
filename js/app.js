@@ -1,9 +1,9 @@
-import { PhaseDetector } from './phase.js?v=0503-6';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-6';
-import { Renderer }       from './renderer.js?v=0503-6';
+import { PhaseDetector } from './phase.js?v=0503-7';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-7';
+import { Renderer }       from './renderer.js?v=0503-7';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-6';
+} from './config.js?v=0503-7';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -501,7 +501,7 @@ class App {
     const rank = { ok:0, warn:1, problem:2, unknown:-1 };
     let worst = STATUS.UNKNOWN;
     frames.forEach(f => {
-      ['p1','p2','p3','p4'].forEach(k => {
+      ['p1','p2','p3','p4','p6'].forEach(k => {
         const s = f.frameData?.[k]?.status;
         if (s && (rank[s] ?? -1) > (rank[worst] ?? -1)) worst = s;
       });
@@ -592,7 +592,7 @@ class App {
     // All principle chips
     const chipContainer = document.getElementById('principle-chips');
     chipContainer.innerHTML = '';
-    ['P1','P2','P3','P4','P9'].forEach(k => {
+    ['P1','P2','P3','P4','P6','P9'].forEach(k => {
       const st  = R[k]?.status || STATUS.UNKNOWN;
       const adv = ADVICE[k];
       const chip = document.createElement('div');
@@ -617,6 +617,7 @@ class App {
       ['P2 ラテラルスウェイ（最大）', R.P2 ? `${(R.P2.maxSway*100).toFixed(0)}%（肩幅比）` : '—'],
       ['P3 脊柱角度変化（最大）', R.P3 ? `${R.P3.peakDelta.toFixed(1)}°${R.P3.earlyExt?' ⚠ アーリーエクステンション検知':''}` : '—'],
       ['P4 X-ファクター（トップ時）', R.P4?.xFactor != null ? `${R.P4.xFactor.toFixed(0)}°（目標:12°以上）` : '—'],
+      ['P6 腰→肩リード（ダウンスイング）', R.P6?.lead != null ? `${R.P6.lead}フレーム先行（目標:2フレーム以上）` : '—'],
       ['P9 体重移動率', R.P9?.weightRatio != null ? `${(R.P9.weightRatio*100).toFixed(0)}%（目標:85%以上）` : '—'],
       ['P9 右かかと浮き', R.P9?.heelDelta != null ? (R.P9.heelDelta < -0.02 ? 'あり ✓' : 'なし') : '—'],
       ['P9 肩の回転完了', R.P9?.rotComp != null ? `${R.P9.rotComp.toFixed(0)}°（目標:150°以上）` : '—'],

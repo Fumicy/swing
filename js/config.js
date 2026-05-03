@@ -1,4 +1,4 @@
-export const VERSION = '0503-6';
+export const VERSION = '0503-7';
 
 // MediaPipe landmark indices
 export const LM = {
@@ -29,6 +29,7 @@ export const THRESH = {
   P2: { warn:0.10, prob:0.15 },
   P3: { warn:5, prob:10, hipFwd:0.03 },
   P4: { warnLow:12, probLow:5 },   // X-Factor (°): lower = worse
+  P6: { warnLead:2, probLead:0 },  // kinematic lead (frames hips before shoulders): lower = worse
   P9: { weightOk:0.85, weightProb:0.70, heelLift:-0.02, rotOk:150, rotWarn:120, cogOk:0.001, cogWarn:0.003 },
   PHASE: { moveStart:0.004, stopThresh:0.002, finishRatio:0.30 },
 };
@@ -75,6 +76,13 @@ export const ADVICE = {
     problem:'トップで肩と腰の捻転差が不足しています（X-ファクター不足）。',
     hint:'「腰45°・肩90°」のイメージでテイクバックしましょう。左肩をアゴの下まで回しながら右ひざの角度を保って腰の回転を抑えるのがポイントです。',
   },
+  P6:{
+    label:'キネマティックシーケンス',
+    ok:'ダウンスイングで腰→肩の正しい連鎖運動ができています。',
+    warn:'ダウンスイングで腰と肩がほぼ同時に動いており、連鎖が不明瞭です。',
+    problem:'ダウンスイングで肩が腰より先に動いています（アームドスイング）。',
+    hint:'切り返し直後に左腰を目標方向へ先に動かし、その後に肩・腕が追いかけるイメージを持ちましょう。「腰から切る」意識がエネルギーの連鎖を生みます。',
+  },
   P9:{
     label:'フォローバランス',
     ok:'フィニッシュのバランスは良好です。',
@@ -85,11 +93,11 @@ export const ADVICE = {
 };
 
 export const TAG_PRIORITY = {
-  general:  ['P3','P1','P2','P4','P9'],
-  slice:    ['P2','P1','P3','P9','P4'],
-  distance: ['P4','P3','P2','P9','P1'],
-  direction:['P1','P3','P2','P9','P4'],
-  topduff:  ['P3','P4','P9','P1','P2'],
+  general:  ['P3','P1','P2','P4','P6','P9'],
+  slice:    ['P2','P1','P3','P9','P4','P6'],
+  distance: ['P4','P6','P3','P2','P9','P1'],
+  direction:['P1','P3','P6','P2','P9','P4'],
+  topduff:  ['P3','P4','P6','P9','P1','P2'],
 };
 
 export const TAGS = [

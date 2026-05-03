@@ -1,5 +1,5 @@
-import { getLM, lmPx } from './utils.js?v=0503-6';
-import { SKELETON, KEY_LM, PHASE_LABELS, STATUS } from './config.js?v=0503-6';
+import { getLM, lmPx } from './utils.js?v=0503-7';
+import { SKELETON, KEY_LM, PHASE_LABELS, STATUS } from './config.js?v=0503-7';
 
 const STATUS_COLOR = { ok:'#22c55e', warn:'#f59e0b', problem:'#ef4444', unknown:'#888' };
 const PHASE_COLOR  = {

@@ -1,5 +1,5 @@
-import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-6';
-import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-6';
+import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-7';
+import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-7';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +37,18 @@ export class SwingAnalyzer {
     this._peakP1X = 0; this._peakP1Y = 0; this._peakP1Total = 0;
     this._peakP3  = 0;
     this._peakXFactor = null;   // P4: null = TOP phase not yet reached
+
+    // P6: kinematic sequence
+    this._hipVelS       = new Smoother(3);
+    this._shoulderVelS  = new Smoother(3);
+    this._prevHipAngle      = null;
+    this._prevShoulderAngle = null;
+    this._p6Frames      = [];  // { hipVel, shoulderVel } during DOWNSWING
+    this._p6HipPeakVel  = 0;
+    this._p6ShoulderPeakVel = 0;
+    this._p6HipPeakIdx  = -1;
+    this._p6ShoulderPeakIdx = -1;
+
     this._p9Data  = null;
   }
 
@@ -135,7 +147,7 @@ export class SwingAnalyzer {
 
     const r   = this._ref;
     const sw  = shoulderWidth(lms) || r.sw;
-    const fd  = { phase, p1:{}, p2:{}, p3:{}, p4:{ xFactor:0, status:STATUS.UNKNOWN }, p9:{} };
+    const fd  = { phase, p1:{}, p2:{}, p3:{}, p4:{ xFactor:0, status:STATUS.UNKNOWN }, p6:{ hipVel:0, shoulderVel:0, status:STATUS.UNKNOWN }, p9:{} };
 
     // ── P1: Head Stability ──────────────────────────────────────────────────
     const n=getLM(lms,LM.NOSE), le=getLM(lms,LM.L_EAR), re=getLM(lms,LM.R_EAR);
@@ -213,6 +225,35 @@ export class SwingAnalyzer {
       }
     }
 
+    // ── P6: Kinematic Sequence (track angular velocity every frame) ────────
+    {
+      const lh6=getLM(lms,LM.L_HIP), rh6=getLM(lms,LM.R_HIP);
+      const ls6=getLM(lms,LM.L_SHOULDER), rs6=getLM(lms,LM.R_SHOULDER);
+      if (lh6 && rh6 && ls6 && rs6) {
+        const hipAngle      = angleDeg(rh6, lh6);
+        const shoulderAngle = angleDeg(rs6, ls6);
+        const rawHipVel  = this._prevHipAngle      !== null ? normAngle(hipAngle - this._prevHipAngle) : 0;
+        const rawShldVel = this._prevShoulderAngle !== null ? normAngle(shoulderAngle - this._prevShoulderAngle) : 0;
+        this._prevHipAngle      = hipAngle;
+        this._prevShoulderAngle = shoulderAngle;
+        const hipVel      = this._hipVelS.push(Math.abs(rawHipVel));
+        const shoulderVel = this._shoulderVelS.push(Math.abs(rawShldVel));
+        if (phase === PHASE.DOWNSWING) {
+          const idx = this._p6Frames.length;
+          this._p6Frames.push({ hipVel, shoulderVel });
+          if (hipVel > this._p6HipPeakVel) {
+            this._p6HipPeakVel = hipVel;
+            this._p6HipPeakIdx = idx;
+          }
+          if (shoulderVel > this._p6ShoulderPeakVel) {
+            this._p6ShoulderPeakVel = shoulderVel;
+            this._p6ShoulderPeakIdx = idx;
+          }
+          fd.p6 = { hipVel, shoulderVel, status: STATUS.UNKNOWN };
+        }
+      }
+    }
+
     // ── P9: Follow Balance (only evaluate in follow/complete) ───────────────
     if (phase === PHASE.FOLLOW || phase === PHASE.COMPLETE) {
       const la=getLM(lms,LM.L_ANKLE), ra=getLM(lms,LM.R_ANKLE);
@@ -281,6 +322,16 @@ export class SwingAnalyzer {
          : this._peakXFactor < THRESH.P4.warnLow ? STATUS.WARN : STATUS.OK)
       : STATUS.UNKNOWN;
 
+    // P6 Kinematic Sequence final
+    let p6Status = STATUS.UNKNOWN;
+    let p6Lead   = null;
+    if (this._p6Frames.length >= 3 && this._p6HipPeakIdx >= 0 && this._p6ShoulderPeakIdx >= 0) {
+      p6Lead = this._p6ShoulderPeakIdx - this._p6HipPeakIdx; // positive = hips peaked first (good)
+      if (p6Lead < THRESH.P6.probLead) p6Status = STATUS.PROBLEM;
+      else if (p6Lead < THRESH.P6.warnLead) p6Status = STATUS.WARN;
+      else p6Status = STATUS.OK;
+    }
+
     // P9 final
     let p9Status = STATUS.UNKNOWN;
     if (this._p9Data) {
@@ -299,6 +350,8 @@ export class SwingAnalyzer {
       P3: { status: p3Status, peakDelta: this._peakP3, earlyExt,
             worstPhase: this._worstP3Phase },
       P4: { status: p4Status, xFactor: this._peakXFactor },
+      P6: { status: p6Status, lead: p6Lead,
+            hipPeak: this._p6HipPeakVel, shoulderPeak: this._p6ShoulderPeakVel },
       P9: { status: p9Status, ...this._p9Data },
       frameData: this._frameData,
       p1Frames, p3Frames,
@@ -314,6 +367,10 @@ export class SwingAnalyzer {
     this._backswingHipDeltas = [];
     this._peakP1X = 0; this._peakP1Y = 0; this._peakP1Total = 0;
     this._peakP3 = 0; this._peakXFactor = null;
+    this._hipVelS.reset(); this._shoulderVelS.reset();
+    this._prevHipAngle = null; this._prevShoulderAngle = null;
+    this._p6Frames = []; this._p6HipPeakVel = 0; this._p6ShoulderPeakVel = 0;
+    this._p6HipPeakIdx = -1; this._p6ShoulderPeakIdx = -1;
     this._p9Data = null; this._cogBuf = null;
     this._worstP1Phase = null; this._worstP3Phase = null;
   }
