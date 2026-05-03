@@ -1,10 +1,10 @@
-import { PhaseDetector } from './phase.js?v=0503-13';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-13';
-import { Renderer }       from './renderer.js?v=0503-13';
-import { ClubDetector }   from './club.js?v=0503-13';
+import { PhaseDetector } from './phase.js?v=0503-14';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-14';
+import { Renderer }       from './renderer.js?v=0503-14';
+import { ClubDetector }   from './club.js?v=0503-14';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-13';
+} from './config.js?v=0503-14';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -419,7 +419,7 @@ class App {
   }
 
   _processFrame(lms) {
-    const phase = this.phaseDetector.update(lms, this.latestClub);
+    const phase = this.phaseDetector.update(lms);
     this.activePhase = phase;
 
     // Collect reference during address
