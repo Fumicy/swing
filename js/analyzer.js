@@ -285,8 +285,3 @@ export class SwingAnalyzer {
   }
 }
 
-function worstStatus(a, b) {
-  const r = { ok:0, warn:1, problem:2, unknown:-1 };
-  if ((r[a] ?? -1) >= (r[b] ?? -1)) return a;
-  return b;
-}
