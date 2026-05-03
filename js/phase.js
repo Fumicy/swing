@@ -1,19 +1,19 @@
-import { getLM, Smoother } from './utils.js?v=0503-16';
-import { PHASE, THRESH } from './config.js?v=0503-16';
+import { getLM, Smoother } from './utils.js?v=0503-17';
+import { PHASE, THRESH } from './config.js?v=0503-17';
 
 // Phase detection: wrist centroid + Euclidean speed + position guards.
 // Club head data (from ClubDetector) is used as a secondary signal when available.
 // Right-handed golfer, front camera (飛球線後方) assumed.
 //
-// TOP detection — three independent signals (first to fire wins):
-//   (a) speed < stopThresh && risen            — classic pause-at-top
-//   (b) wrist Y local minimum reversal         — continuous swing without pause
-//   (c) club head Y local minimum reversal     — most reliable when YOLO active
+// TOP detection  Ethree independent signals (first to fire wins):
+//   (a) speed < stopThresh && risen             Eclassic pause-at-top
+//   (b) wrist Y local minimum reversal          Econtinuous swing without pause
+//   (c) club head Y local minimum reversal      Emost reliable when YOLO active
 //
-// DOWNSWING→FOLLOW — three signals + timeout:
+// DOWNSWING→FOLLOW  Ethree signals + timeout:
 //   (a) wristImpact: wrist returns to address height
 //   (b) speedDrop: velocity falls to 25% of peak
-//   (c) clubImpact: club.y > 0.72 (near ground) — YOLO
+//   (c) clubImpact: club.y > 0.72 (near ground)  EYOLO
 //   (d) 20-frame timeout (absolute safety)
 
 export class PhaseDetector {
@@ -108,7 +108,7 @@ export class PhaseDetector {
         const midY  = (shoulderY + refWY) / 2;
         const risen = wy < midY;
 
-        // Track wrist Y minimum (highest point reached — smaller Y = higher in image)
+        // Track wrist Y minimum (highest point reached  Esmaller Y = higher in image)
         if (this._wristYMin === null || wy < this._wristYMin) this._wristYMin = wy;
 
         // (a) Classic: wrist slows and is high enough
@@ -124,7 +124,7 @@ export class PhaseDetector {
 
         if (slowTop || wristReversal || clubTop) this._setPhase(PHASE.TOP);
 
-        // Safety: ~0.85 s timeout (reduced from 90 → 25 frames)
+        // Safety: ~0.85 s timeout (reduced from 90 ↁE25 frames)
         if (this._phaseFrames > 25) this._setPhase(PHASE.TOP);
         break;
       }

@@ -1,5 +1,5 @@
-import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-16';
-import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-16';
+import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-17';
+import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-17';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ export class SwingAnalyzer {
       return (lh&&rh) ? (lh.x+rh.x)/2 : null;
     }).filter(v=>v!==null);
 
-    // Spine angle reference (shoulder mid → hip mid angle)
+    // Spine angle reference (shoulder mid ↁEhip mid angle)
     const spineArr = frames.map(f => this._spineAngle(f)).filter(v=>v!==null);
 
     // Shoulder angle reference

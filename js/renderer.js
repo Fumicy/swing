@@ -1,5 +1,5 @@
-import { getLM, lmPx } from './utils.js?v=0503-16';
-import { SKELETON, KEY_LM, PHASE_LABELS, STATUS } from './config.js?v=0503-16';
+import { getLM, lmPx } from './utils.js?v=0503-17';
+import { SKELETON, KEY_LM, PHASE_LABELS, STATUS } from './config.js?v=0503-17';
 
 const STATUS_COLOR = { ok:'#22c55e', warn:'#f59e0b', problem:'#ef4444', unknown:'#888' };
 const PHASE_COLOR  = {
@@ -182,7 +182,7 @@ export class Renderer {
     ctx.fillText(`C ${(club.conf * 100).toFixed(0)}%`, cx + r + 3, cy + 4);
   }
 
-  // Draw stored frame (JPEG) + skeleton overlay — used in results viewer
+  // Draw stored frame (JPEG) + skeleton overlay  Eused in results viewer
   drawStoredFrame(imageEl, lms, frameData) {
     const ctx = this.ctx;
     const W = this.canvas.width, H = this.canvas.height;
