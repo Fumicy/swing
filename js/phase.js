@@ -1,5 +1,5 @@
-import { getLM, Smoother, mid } from './utils.js';
-import { PHASE, THRESH } from './config.js';
+import { getLM, Smoother, mid } from './utils.js?v=0503-5';
+import { PHASE, THRESH } from './config.js?v=0503-5';
 
 // Detects current swing phase from landmark time series.
 // Right-handed golfer, front camera assumed.

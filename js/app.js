@@ -1,9 +1,9 @@
-import { PhaseDetector } from './phase.js';
-import { SwingAnalyzer }  from './analyzer.js';
-import { Renderer }       from './renderer.js';
+import { PhaseDetector } from './phase.js?v=0503-5';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-5';
+import { Renderer }       from './renderer.js?v=0503-5';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js';
+} from './config.js?v=0503-5';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
