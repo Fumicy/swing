@@ -1,4 +1,4 @@
-export const VERSION = '0503-5';
+export const VERSION = '0503-6';
 
 // MediaPipe landmark indices
 export const LM = {
@@ -28,6 +28,7 @@ export const THRESH = {
   P1: { warnX:0.10, probX:0.18, warnY:0.08, probY:0.15, probTotal:0.20 },
   P2: { warn:0.10, prob:0.15 },
   P3: { warn:5, prob:10, hipFwd:0.03 },
+  P4: { warnLow:12, probLow:5 },   // X-Factor (°): lower = worse
   P9: { weightOk:0.85, weightProb:0.70, heelLift:-0.02, rotOk:150, rotWarn:120, cogOk:0.001, cogWarn:0.003 },
   PHASE: { moveStart:0.004, stopThresh:0.002, finishRatio:0.30 },
 };
@@ -67,6 +68,13 @@ export const ADVICE = {
     problem:'ダウンスイングで体が起き上がっています（アーリーエクステンション）。',
     hint:'アドレスの前傾角を保ったまま振り抜きましょう。お尻の位置をアドレスのまま固定するイメージを持ってください。',
   },
+  P4:{
+    label:'X-ファクター',
+    ok:'トップで十分な肩腰の捻転差があります。',
+    warn:'トップで肩と腰の捻転差がやや不足しています。',
+    problem:'トップで肩と腰の捻転差が不足しています（X-ファクター不足）。',
+    hint:'「腰45°・肩90°」のイメージでテイクバックしましょう。左肩をアゴの下まで回しながら右ひざの角度を保って腰の回転を抑えるのがポイントです。',
+  },
   P9:{
     label:'フォローバランス',
     ok:'フィニッシュのバランスは良好です。',
@@ -77,11 +85,11 @@ export const ADVICE = {
 };
 
 export const TAG_PRIORITY = {
-  general:  ['P3','P1','P2','P9'],
-  slice:    ['P2','P1','P3','P9'],
-  distance: ['P3','P2','P9','P1'],
-  direction:['P1','P3','P2','P9'],
-  topduff:  ['P3','P9','P1','P2'],
+  general:  ['P3','P1','P2','P4','P9'],
+  slice:    ['P2','P1','P3','P9','P4'],
+  distance: ['P4','P3','P2','P9','P1'],
+  direction:['P1','P3','P2','P9','P4'],
+  topduff:  ['P3','P4','P9','P1','P2'],
 };
 
 export const TAGS = [

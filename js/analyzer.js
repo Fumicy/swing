@@ -1,5 +1,5 @@
-import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-5';
-import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-5';
+import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-6';
+import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-6';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ export class SwingAnalyzer {
     this._backswingHipDeltas = [];
     this._peakP1X = 0; this._peakP1Y = 0; this._peakP1Total = 0;
     this._peakP3  = 0;
+    this._peakXFactor = null;   // P4: null = TOP phase not yet reached
     this._p9Data  = null;
   }
 
@@ -77,6 +78,12 @@ export class SwingAnalyzer {
       return (ls&&rs) ? angleDeg(rs,ls) : null;
     }).filter(v=>v!==null);
 
+    // Hip angle reference (for P4 X-Factor)
+    const hipAngleArr = frames.map(f => {
+      const lh=getLM(f,LM.L_HIP), rh=getLM(f,LM.R_HIP);
+      return (lh&&rh) ? angleDeg(rh,lh) : null;
+    }).filter(v=>v!==null);
+
     // Shoulder mid Y reference (for P3 front camera proxy)
     const sMidYArr = frames.map(f => {
       const ls=getLM(f,LM.L_SHOULDER), rs=getLM(f,LM.R_SHOULDER);
@@ -105,6 +112,7 @@ export class SwingAnalyzer {
       sMidY: sMidYArr.length ? mean(sMidYArr) : 0.3,
       ballX: ballXArr.length ? mean(ballXArr) : 0.5,
       rHeelDiff: rHeelArr.length ? mean(rHeelArr) : 0,
+      hipAngle: hipAngleArr.length ? mean(hipAngleArr) : 0,
       // For P9: ankle positions
       lAnkleX: mean(frames.map(f=>{const a=getLM(f,LM.L_ANKLE);return a?a.x:null}).filter(v=>v!==null)) || 0.35,
       rAnkleX: mean(frames.map(f=>{const a=getLM(f,LM.R_ANKLE);return a?a.x:null}).filter(v=>v!==null)) || 0.65,
@@ -127,7 +135,7 @@ export class SwingAnalyzer {
 
     const r   = this._ref;
     const sw  = shoulderWidth(lms) || r.sw;
-    const fd  = { phase, p1:{}, p2:{}, p3:{}, p9:{} };
+    const fd  = { phase, p1:{}, p2:{}, p3:{}, p4:{ xFactor:0, status:STATUS.UNKNOWN }, p9:{} };
 
     // ── P1: Head Stability ──────────────────────────────────────────────────
     const n=getLM(lms,LM.NOSE), le=getLM(lms,LM.L_EAR), re=getLM(lms,LM.R_EAR);
@@ -185,6 +193,24 @@ export class SwingAnalyzer {
       }
     } else {
       fd.p3 = { delta:0, sMidRise:0, earlyExt:false, status:STATUS.UNKNOWN };
+    }
+
+    // ── P4: X-Factor (TOP phase only) ──────────────────────────────────────
+    if (phase === PHASE.TOP) {
+      const ls4=getLM(lms,LM.L_SHOULDER), rs4=getLM(lms,LM.R_SHOULDER);
+      const lh4=getLM(lms,LM.L_HIP),      rh4=getLM(lms,LM.R_HIP);
+      if (ls4 && rs4 && lh4 && rh4) {
+        const sDelta = normAngle(angleDeg(rs4, ls4) - r.shoulder);
+        const hDelta = normAngle(angleDeg(rh4, lh4) - r.hipAngle);
+        const xFactor = Math.abs(sDelta) - Math.abs(hDelta);
+        const status = xFactor < THRESH.P4.probLow ? STATUS.PROBLEM
+                     : xFactor < THRESH.P4.warnLow ? STATUS.WARN
+                     : STATUS.OK;
+        fd.p4 = { xFactor, status };
+        if (this._peakXFactor === null || xFactor > this._peakXFactor) {
+          this._peakXFactor = xFactor;
+        }
+      }
     }
 
     // ── P9: Follow Balance (only evaluate in follow/complete) ───────────────
@@ -249,6 +275,12 @@ export class SwingAnalyzer {
     const p3Status = classify(this._peakP3, THRESH.P3.warn, THRESH.P3.prob);
     const earlyExt = this._frameData.some(f => f.p3?.earlyExt);
 
+    // P4 final
+    const p4Status = this._peakXFactor !== null
+      ? (this._peakXFactor < THRESH.P4.probLow ? STATUS.PROBLEM
+         : this._peakXFactor < THRESH.P4.warnLow ? STATUS.WARN : STATUS.OK)
+      : STATUS.UNKNOWN;
+
     // P9 final
     let p9Status = STATUS.UNKNOWN;
     if (this._p9Data) {
@@ -266,6 +298,7 @@ export class SwingAnalyzer {
       P2: { status: p2Status, maxSway },
       P3: { status: p3Status, peakDelta: this._peakP3, earlyExt,
             worstPhase: this._worstP3Phase },
+      P4: { status: p4Status, xFactor: this._peakXFactor },
       P9: { status: p9Status, ...this._p9Data },
       frameData: this._frameData,
       p1Frames, p3Frames,
@@ -280,7 +313,8 @@ export class SwingAnalyzer {
     this._shoulderS.reset(); this._hipYS.reset();
     this._backswingHipDeltas = [];
     this._peakP1X = 0; this._peakP1Y = 0; this._peakP1Total = 0;
-    this._peakP3 = 0; this._p9Data = null; this._cogBuf = null;
+    this._peakP3 = 0; this._peakXFactor = null;
+    this._p9Data = null; this._cogBuf = null;
     this._worstP1Phase = null; this._worstP3Phase = null;
   }
 }
