@@ -1,5 +1,5 @@
-import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-17';
-import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-17';
+import { getLM, mid, dist2, angleDeg, normAngle, mean, Smoother, shoulderWidth } from './utils.js?v=0503-20';
+import { LM, THRESH, STATUS, PHASE } from './config.js?v=0503-20';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,7 +49,8 @@ export class SwingAnalyzer {
     this._p6HipPeakIdx  = -1;
     this._p6ShoulderPeakIdx = -1;
 
-    this._p9Data  = null;
+    this._p9Data    = null;
+    this._retroData = [];   // high-fps landmark frames for P5/P7
   }
 
   // Feed address frames (first 10)
@@ -57,6 +58,14 @@ export class SwingAnalyzer {
     if (this._refFrames.length < 10) this._refFrames.push(lms);
     if (this._refFrames.length === 10) this._computeRef();
   }
+
+  // Store high-fps retro landmarks (TOP→FOLLOW window) for P5/P7
+  // data: [{ ts: number, lms: poseLandmarks|null }, ...]
+  feedRetroLms(data) {
+    this._retroData = data.filter(d => d.lms !== null);
+  }
+
+  get retroData() { return this._retroData; }
 
   _computeRef() {
     const frames = this._refFrames;
@@ -355,6 +364,7 @@ export class SwingAnalyzer {
       P9: { status: p9Status, ...this._p9Data },
       frameData: this._frameData,
       p1Frames, p3Frames,
+      retroData: this._retroData,
     };
   }
 
@@ -373,6 +383,7 @@ export class SwingAnalyzer {
     this._p6HipPeakIdx = -1; this._p6ShoulderPeakIdx = -1;
     this._p9Data = null; this._cogBuf = null;
     this._worstP1Phase = null; this._worstP3Phase = null;
+    this._retroData = [];
   }
 }
 

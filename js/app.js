@@ -1,10 +1,10 @@
-import { PhaseDetector } from './phase.js?v=0503-19';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-19';
-import { Renderer }       from './renderer.js?v=0503-19';
-import { ClubDetector }   from './club.js?v=0503-19';
+import { PhaseDetector } from './phase.js?v=0503-20';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-20';
+import { Renderer }       from './renderer.js?v=0503-20';
+import { ClubDetector }   from './club.js?v=0503-20';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-19';
+} from './config.js?v=0503-20';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -43,6 +43,16 @@ class App {
     this.phaseSnaps   = {};         // { phase: imageUrl }
     this.results      = null;
     this.activePhase  = PHASE.ADDRESS;
+
+    // ── Retro high-fps buffer ─────────────────────────────────────────────
+    this._rawBuf       = [];        // { ts, dataUrl } rolling 360 entries at native fps
+    this._phaseTs      = {};        // { [phase]: performance.now() } at each phase change
+    this._retroActive  = false;     // true while _retroAnalyze() replays frames
+    this._retroResolve = null;      // resolved by _onPoseResults() during retro replay
+    // Persistent small canvas for efficient JPEG capture
+    this._offscreen    = document.createElement('canvas');
+    this._offscreen.width = 320; this._offscreen.height = 180;
+    this._offscreenCtx = this._offscreen.getContext('2d');
 
     this.rafId        = null;
     this.mpMs         = 0;
@@ -176,7 +186,7 @@ class App {
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: this.facingMode },
-          frameRate:  { ideal: 30 },
+          frameRate:  { ideal: 120 },
           width:      { ideal: 1280 },
           height:     { ideal: 720 },
         },
@@ -240,7 +250,7 @@ class App {
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: this.facingMode },
-          frameRate:  { ideal: 30 },
+          frameRate:  { ideal: 120 },
           width:      { ideal: 1280 },
           height:     { ideal: 720 },
         },
@@ -306,6 +316,13 @@ class App {
     // Always draw current video frame every RAF tick (prevents flicker)
     ctx.drawImage(vid, 0, 0, W, H);
 
+    // Raw frame capture for retro buffer (RECORDING only, native camera fps)
+    if (this.state === AppState.RECORDING) {
+      this._offscreenCtx.drawImage(vid, 0, 0, 320, 180);
+      this._rawBuf.push({ ts: now, dataUrl: this._offscreen.toDataURL('image/jpeg', 0.4) });
+      if (this._rawBuf.length > 360) this._rawBuf.shift();
+    }
+
     // Overlay latest MediaPipe results
     const lms = this.latestLms;
     if (lms) {
@@ -332,8 +349,8 @@ class App {
     this.renderer.drawFrameBudget(this.mpMs, this.mpMs);
     this._updatePerfDisplay();
 
-    // Throttle MediaPipe to 30fps
-    if (now - this.lastAnalyzeTime >= 33) {
+    // Throttle MediaPipe to 30fps (skip during retro replay)
+    if (!this._retroActive && now - this.lastAnalyzeTime >= 33) {
       this.lastAnalyzeTime = now;
       this.analyzeCount++;
       const t0 = performance.now();
@@ -351,8 +368,17 @@ class App {
   }
 
   _onPoseResults(results) {
-    const lms = results.poseLandmarks;
-    this.latestLms = lms || null;
+    const lms = results.poseLandmarks || null;
+
+    // Retro replay: resolve pending promise and skip normal processing
+    if (this._retroActive && this._retroResolve) {
+      const resolve = this._retroResolve;
+      this._retroResolve = null;
+      resolve(lms);
+      return;
+    }
+
+    this.latestLms = lms;
     if (lms && this.state === AppState.RECORDING) {
       this.latestFrameData = this._processFrame(lms);
     } else {
@@ -491,7 +517,42 @@ class App {
     try { return cvs.toDataURL('image/jpeg', 0.5); } catch { return null; }
   }
 
+  async _retroAnalyze() {
+    const tTop    = this._phaseTs[PHASE.TOP]    ?? -Infinity;
+    const tFollow = this._phaseTs[PHASE.FOLLOW] ?? Infinity;
+    const frames  = this._rawBuf.filter(f => f.ts >= tTop - 100 && f.ts <= tFollow + 100);
+    if (frames.length < 2) return;
+
+    this._retroActive = true;
+    const retroData = [];
+    try {
+      for (const frame of frames) {
+        const lms = await this._retroProcessFrame(frame.dataUrl);
+        retroData.push({ ts: frame.ts, lms });
+      }
+    } finally {
+      this._retroActive  = false;
+      this._retroResolve = null;
+    }
+    this.analyzer.feedRetroLms(retroData);
+  }
+
+  _retroProcessFrame(dataUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        this._retroResolve = resolve;
+        this.pose.send({ image: img }).catch(() => {
+          if (this._retroResolve === resolve) { this._retroResolve = null; resolve(null); }
+        });
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+
   _onPhaseChange(newPhase, prevPhase) {
+    this._phaseTs[newPhase] = performance.now();
     // Capture snapshot at phase transition
     const url = this._captureFrame();
     if (url) this.phaseSnaps[prevPhase] = url;
@@ -499,13 +560,16 @@ class App {
       `${PHASE_LABELS[newPhase] || newPhase} フェーズ`;
   }
 
-  _finishRecording() {
+  async _finishRecording() {
     if (this.state !== AppState.RECORDING) return;
     this.state = AppState.ANALYZING;
 
     // Capture follow snapshot
     const followUrl = this._captureFrame();
     if (followUrl) this.phaseSnaps[PHASE.FOLLOW] = followUrl;
+
+    // High-fps retro analysis (TOP → FOLLOW window)
+    await this._retroAnalyze();
 
     this.results = this.analyzer.getResults();
     this._buildResults();
@@ -704,9 +768,13 @@ class App {
     this.phaseDetector.reset();
     this.analyzer.reset();
     this.clubDetector.reset();
-    this.swingBuffer = [];
-    this.phaseSnaps  = {};
-    this.results     = null;
+    this.swingBuffer    = [];
+    this.phaseSnaps     = {};
+    this.results        = null;
+    this._rawBuf        = [];
+    this._phaseTs       = {};
+    this._retroActive   = false;
+    this._retroResolve  = null;
     this.swingDetected = false;
     this.referenceCollected = false;
     this._framingStable = 0;
@@ -720,9 +788,13 @@ class App {
     this.phaseDetector.reset();
     this.analyzer.reset();
     this.clubDetector.reset();
-    this.swingBuffer = [];
-    this.phaseSnaps  = {};
-    this.results     = null;
+    this.swingBuffer    = [];
+    this.phaseSnaps     = {};
+    this.results        = null;
+    this._rawBuf        = [];
+    this._phaseTs       = {};
+    this._retroActive   = false;
+    this._retroResolve  = null;
     this.swingDetected = false;
     this.referenceCollected = false;
     this._framingStable = 0;
