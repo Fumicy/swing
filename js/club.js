@@ -6,7 +6,7 @@
 // Tier 2  ShaftDiffTracker               — body-masked frame diff + shaft line verify
 // Tier 3  IK extension                   — forearm extension, self-calibrated at address
 
-import { getLM } from './utils.js?v=0503-15';
+import { getLM } from './utils.js?v=0503-16';
 
 const MODEL_PATH  = 'models/club_yolo8n.onnx';
 const INPUT_SIZE  = 320;
