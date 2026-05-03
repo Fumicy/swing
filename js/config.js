@@ -1,4 +1,4 @@
-export const VERSION = '0503-7';
+export const VERSION = '0503-8';
 
 // MediaPipe landmark indices
 export const LM = {
@@ -31,7 +31,7 @@ export const THRESH = {
   P4: { warnLow:12, probLow:5 },   // X-Factor (°): lower = worse
   P6: { warnLead:2, probLead:0 },  // kinematic lead (frames hips before shoulders): lower = worse
   P9: { weightOk:0.85, weightProb:0.70, heelLift:-0.02, rotOk:150, rotWarn:120, cogOk:0.001, cogWarn:0.003 },
-  PHASE: { moveStart:0.004, stopThresh:0.002, finishRatio:0.30 },
+  PHASE: { moveStart:0.005, stopThresh:0.003, finishRatio:0.25, moveFrames:3, refFrames:10 },
 };
 
 export const PHASE = {

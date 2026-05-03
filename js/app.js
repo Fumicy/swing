@@ -1,9 +1,9 @@
-import { PhaseDetector } from './phase.js?v=0503-7';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-7';
-import { Renderer }       from './renderer.js?v=0503-7';
+import { PhaseDetector } from './phase.js?v=0503-8';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-8';
+import { Renderer }       from './renderer.js?v=0503-8';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-7';
+} from './config.js?v=0503-8';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -398,7 +398,7 @@ class App {
   }
 
   _processFrame(lms) {
-    const phase = this.phaseDetector.update(lms, this.swingBuffer.length);
+    const phase = this.phaseDetector.update(lms);
     this.activePhase = phase;
 
     // Collect reference during address

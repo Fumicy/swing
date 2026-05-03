@@ -1,83 +1,139 @@
-import { getLM, Smoother, mid } from './utils.js?v=0503-7';
-import { PHASE, THRESH } from './config.js?v=0503-7';
+import { getLM, Smoother } from './utils.js?v=0503-8';
+import { PHASE, THRESH } from './config.js?v=0503-8';
 
-// Detects current swing phase from landmark time series.
-// Right-handed golfer, front camera assumed.
+// Phase detection using both-wrist centroid + Euclidean speed + position guards.
+// Right-handed golfer, front camera (飛球線後方) assumed.
 export class PhaseDetector {
   constructor() {
     this._phase = PHASE.ADDRESS;
-    this._wristSmoother = new Smoother(5);
-    this._prevWristX = null;
-    this._peakWristSpeed = 0;
-    this._topCandidate = 0;
-    this._framesSinceTop = 0;
-    this._addressFrames = 0;
-    this._backswingPeak = 0;
-    this.onPhaseChange = null; // callback(newPhase)
+    this._dxS = new Smoother(5);
+    this._dyS = new Smoother(5);
+    this._prevWx      = null;
+    this._prevWy      = null;
+    this._phaseFrames = 0;   // frames spent in current phase
+    this._moveFrames  = 0;   // consecutive frames above moveStart (ADDRESS)
+    this._peakSpeed   = 0;   // peak Euclidean speed during DOWNSWING
+    this._stoppedFrames = 0; // consecutive slow frames (FOLLOW)
+
+    // Address reference: collected from first refFrames of ADDRESS phase
+    this._ref    = null;     // { wristY, shoulderY, hipY }
+    this._refAcc = { wristY:0, shoulderY:0, hipY:0, n:0 };
+
+    this.onPhaseChange = null; // callback(newPhase, prevPhase)
   }
 
   get phase() { return this._phase; }
 
-  // Call each frame. Returns current phase string.
-  update(lms, frameIdx) {
-    const lw = getLM(lms, 15); // left wrist
-    if (!lw) return this._phase;
+  update(lms) {
+    const lw = getLM(lms, 15), rw = getLM(lms, 16);
+    const ls = getLM(lms, 11), rs = getLM(lms, 12);
+    const lh = getLM(lms, 23), rh = getLM(lms, 24);
 
-    const wx = lw.x;
-    const rawDx = this._prevWristX !== null ? wx - this._prevWristX : 0;
-    this._prevWristX = wx;
+    // Wrist centroid — use whichever wrists are visible
+    let wx, wy;
+    if      (lw && rw) { wx = (lw.x + rw.x) / 2; wy = (lw.y + rw.y) / 2; }
+    else if (lw)       { wx = lw.x; wy = lw.y; }
+    else if (rw)       { wx = rw.x; wy = rw.y; }
+    else               return this._phase;
 
-    const smoothDx = this._wristSmoother.push(rawDx);
-    const speed = Math.abs(smoothDx);
+    // Current shoulder/hip Y (fall back to ref if landmarks invisible)
+    const shoulderY = (ls && rs) ? (ls.y + rs.y) / 2 : (this._ref?.shoulderY ?? 0.35);
+    const hipY      = (lh && rh) ? (lh.y + rh.y) / 2 : (this._ref?.hipY     ?? 0.60);
+
+    // Smoothed velocity
+    const rawDx = this._prevWx !== null ? wx - this._prevWx : 0;
+    const rawDy = this._prevWy !== null ? wy - this._prevWy : 0;
+    this._prevWx = wx; this._prevWy = wy;
+    const sdx   = this._dxS.push(rawDx);
+    const sdy   = this._dyS.push(rawDy);
+    const speed = Math.sqrt(sdx * sdx + sdy * sdy); // Euclidean speed
 
     const T = THRESH.PHASE;
+    this._phaseFrames++;
+
+    // Collect address reference from first refFrames ADDRESS frames
+    if (this._phase === PHASE.ADDRESS && this._ref === null) {
+      const a = this._refAcc;
+      a.wristY += wy;
+      if (ls && rs) a.shoulderY += (ls.y + rs.y) / 2;
+      if (lh && rh) a.hipY      += (lh.y + rh.y) / 2;
+      a.n++;
+      if (a.n >= T.refFrames) {
+        this._ref = {
+          wristY:   a.wristY   / a.n,
+          shoulderY: a.shoulderY / a.n || 0.35,
+          hipY:      a.hipY      / a.n || 0.60,
+        };
+      }
+    }
 
     switch (this._phase) {
+
+      // ── ADDRESS ────────────────────────────────────────────────────────────
       case PHASE.ADDRESS:
-        this._addressFrames++;
-        if (speed > T.moveStart && this._addressFrames > 8) {
-          this._setPhase(PHASE.BACKSWING);
-          this._backswingPeak = wx;
+        // Wait for stabilization before monitoring
+        if (this._phaseFrames < 10) break;
+        if (speed > T.moveStart) {
+          // Require several consecutive fast frames to confirm swing start
+          if (++this._moveFrames >= T.moveFrames) this._setPhase(PHASE.BACKSWING);
+        } else {
+          this._moveFrames = 0;
         }
         break;
 
-      case PHASE.BACKSWING:
-        // Track peak wrist position (rightward movement for right-handed golfer)
-        if (wx > this._backswingPeak) this._backswingPeak = wx;
-        // Top = wrist reverses direction (speed near zero or direction flips)
-        if (speed < T.stopThresh && this._prevWristX !== null) {
+      // ── BACKSWING ──────────────────────────────────────────────────────────
+      case PHASE.BACKSWING: {
+        const refWY = this._ref?.wristY ?? hipY;
+        // TOP guard: wrist must have risen above the midpoint between
+        // address-wrist-height and current-shoulder-height.
+        // This prevents premature TOP on mid-backswing slowdowns.
+        const midY  = (shoulderY + refWY) / 2;
+        const risen = wy < midY;
+
+        if (speed < T.stopThresh && risen) {
           this._setPhase(PHASE.TOP);
-          this._framesSinceTop = 0;
         }
+        // Safety: 3 seconds in BACKSWING → force TOP
+        if (this._phaseFrames > 90) this._setPhase(PHASE.TOP);
         break;
+      }
 
+      // ── TOP ────────────────────────────────────────────────────────────────
       case PHASE.TOP:
-        this._framesSinceTop++;
-        // Downswing = wrist moving back (leftward, negative dx)
-        if (smoothDx < -T.moveStart) {
+        // Downswing starts when wrist moves downward (sdy > 0 in MediaPipe
+        // coords where y increases toward bottom) with meaningful speed
+        if (sdy > T.moveStart * 0.8 && speed > T.moveStart) {
           this._setPhase(PHASE.DOWNSWING);
-          this._peakWristSpeed = 0;
+          this._peakSpeed = 0;
         }
-        // Safety: if stuck at top too long, move on
-        if (this._framesSinceTop > 15) {
+        // Safety: 0.4 s at TOP → force DOWNSWING
+        if (this._phaseFrames > 12) {
           this._setPhase(PHASE.DOWNSWING);
-          this._peakWristSpeed = 0;
+          this._peakSpeed = 0;
         }
         break;
 
-      case PHASE.DOWNSWING:
-        if (speed > this._peakWristSpeed) this._peakWristSpeed = speed;
-        // Follow = speed has dropped to 30% of peak
-        if (this._peakWristSpeed > T.moveStart * 3 &&
-            speed < this._peakWristSpeed * T.finishRatio) {
-          this._setPhase(PHASE.FOLLOW);
-        }
-        break;
+      // ── DOWNSWING ─────────────────────────────────────────────────────────
+      case PHASE.DOWNSWING: {
+        if (speed > this._peakSpeed) this._peakSpeed = speed;
 
+        const refWY = this._ref?.wristY ?? hipY;
+        // Primary: wrist returns to impact zone (near address height)
+        const atImpact   = wy > refWY - 0.08 && this._peakSpeed > T.moveStart;
+        // Fallback: speed drops to 25% of peak
+        const speedDropped = this._peakSpeed > T.moveStart * 2 &&
+                             speed < this._peakSpeed * T.finishRatio;
+        if (atImpact || speedDropped) this._setPhase(PHASE.FOLLOW);
+        break;
+      }
+
+      // ── FOLLOW ─────────────────────────────────────────────────────────────
       case PHASE.FOLLOW:
-        // Complete = motion has essentially stopped
         if (speed < T.stopThresh) {
-          this._setPhase(PHASE.COMPLETE);
+          // Require sustained stillness before COMPLETE
+          if (++this._stoppedFrames >= 6) this._setPhase(PHASE.COMPLETE);
+        } else {
+          this._stoppedFrames = 0;
         }
         break;
 
@@ -92,17 +148,18 @@ export class PhaseDetector {
     if (p === this._phase) return;
     const prev = this._phase;
     this._phase = p;
+    this._phaseFrames = 0;
+    this._stoppedFrames = 0;
     if (this.onPhaseChange) this.onPhaseChange(p, prev);
   }
 
   reset() {
     this._phase = PHASE.ADDRESS;
-    this._wristSmoother.reset();
-    this._prevWristX = null;
-    this._peakWristSpeed = 0;
-    this._topCandidate = 0;
-    this._framesSinceTop = 0;
-    this._addressFrames = 0;
-    this._backswingPeak = 0;
+    this._dxS.reset(); this._dyS.reset();
+    this._prevWx = null; this._prevWy = null;
+    this._phaseFrames = 0; this._moveFrames = 0;
+    this._peakSpeed = 0; this._stoppedFrames = 0;
+    this._ref    = null;
+    this._refAcc = { wristY:0, shoulderY:0, hipY:0, n:0 };
   }
 }
