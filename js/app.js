@@ -1,9 +1,10 @@
-import { PhaseDetector } from './phase.js?v=0503-8';
-import { SwingAnalyzer }  from './analyzer.js?v=0503-8';
-import { Renderer }       from './renderer.js?v=0503-8';
+import { PhaseDetector } from './phase.js?v=0503-9';
+import { SwingAnalyzer }  from './analyzer.js?v=0503-9';
+import { Renderer }       from './renderer.js?v=0503-9';
+import { ClubDetector }   from './club.js?v=0503-9';
 import {
   PHASE, STATUS, ADVICE, TAGS, TAG_PRIORITY, PHASE_LABELS, VERSION
-} from './config.js?v=0503-8';
+} from './config.js?v=0503-9';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 const AppState = {
@@ -34,6 +35,9 @@ class App {
     this.latestFrameData = null;
     this.phaseDetector = new PhaseDetector();
     this.analyzer     = new SwingAnalyzer();
+    this.clubDetector  = new ClubDetector();
+    this.latestClub    = null;
+    this.lastClubTime  = 0;
 
     this.swingBuffer  = [];         // stored frames
     this.phaseSnaps   = {};         // { phase: imageUrl }
@@ -186,6 +190,9 @@ class App {
       banner.textContent = '解析エンジンを読み込み中... (初回は10〜30秒かかります)';
       banner.style.color = '#e3b341';
 
+      // Start YOLO model loading in parallel (non-blocking)
+      this.clubDetector.init().then(() => this._updateClubStatus());
+
       await this._initPose();
 
       // Hand off from preview loop to full analysis loop
@@ -241,6 +248,7 @@ class App {
         `${s.width ?? '?'}×${s.height ?? '?'} @ ${Math.round(this.camFps)}fps`;
       this.latestLms = null;
       this.latestFrameData = null;
+      this.latestClub = null;
     } catch(e) {
       alert('カメラ切替エラー: ' + e.message);
     } finally {
@@ -309,6 +317,11 @@ class App {
         this._updateFramingUI(lms);
       }
     }
+    // Club head overlay (framing + recording)
+    if (this.latestClub &&
+        (this.state === AppState.FRAMING || this.state === AppState.RECORDING)) {
+      this.renderer.drawClubHead(this.latestClub);
+    }
 
     this.renderer.drawFrameBudget(this.mpMs, this.mpMs);
     this._updatePerfDisplay();
@@ -320,6 +333,12 @@ class App {
       const t0 = performance.now();
       this.pose.send({ image: vid }).catch(() => {});
       this.mpMs = performance.now() - t0;
+    }
+
+    // Club detection at ~10fps (async, fire-and-forget)
+    if (this.clubDetector.ready && now - this.lastClubTime >= 100) {
+      this.lastClubTime = now;
+      this.clubDetector.detect(vid).then(r => { this.latestClub = r ?? null; });
     }
   }
 
@@ -398,7 +417,7 @@ class App {
   }
 
   _processFrame(lms) {
-    const phase = this.phaseDetector.update(lms);
+    const phase = this.phaseDetector.update(lms, this.latestClub);
     this.activePhase = phase;
 
     // Collect reference during address
@@ -646,6 +665,7 @@ class App {
     this._previewActive  = false;
     this.latestLms       = null;
     this.latestFrameData = null;
+    this.latestClub      = null;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     if (this.cdTimer) clearInterval(this.cdTimer);
     if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
@@ -676,6 +696,11 @@ class App {
   _updatePerfDisplay() {
     const el = document.getElementById('perf-badge');
     if (el) el.textContent = `${this.anFps} fps 解析`;
+  }
+
+  _updateClubStatus() {
+    const el = document.getElementById('club-status');
+    if (el) el.textContent = this.clubDetector.statusText;
   }
 
   _goToResults() {

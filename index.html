@@ -68,6 +68,7 @@
       <span id="perf-badge">— fps</span>
       <span style="font-size:11px;color:#8b949e">全身が映るよう調整</span>
     </div>
+    <div id="club-status" style="font-size:11px;color:#8b949e;text-align:center;padding:2px 0">クラブ検出: 初期化待ち</div>
     <div id="frame-banner" style="font-size:14px;font-weight:500;text-align:center;color:#e3b341;padding:4px 0">人物が映るよう調整してください</div>
     <button class="btn-primary" id="btn-frame-ok" disabled style="margin-top:0">フレーミングOK → 待機開始</button>
   </div>
@@ -158,6 +159,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
-<script type="module" src="js/app.js?v=0503-8"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js" crossorigin="anonymous"></script>
+<script type="module" src="js/app.js?v=0503-9"></script>
 </body>
 </html>

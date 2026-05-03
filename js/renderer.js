@@ -1,5 +1,5 @@
-import { getLM, lmPx } from './utils.js?v=0503-8';
-import { SKELETON, KEY_LM, PHASE_LABELS, STATUS } from './config.js?v=0503-8';
+import { getLM, lmPx } from './utils.js?v=0503-9';
+import { SKELETON, KEY_LM, PHASE_LABELS, STATUS } from './config.js?v=0503-9';
 
 const STATUS_COLOR = { ok:'#22c55e', warn:'#f59e0b', problem:'#ef4444', unknown:'#888' };
 const PHASE_COLOR  = {
@@ -161,6 +161,25 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(88,214,120,.8)';
     ctx.lineWidth = 4;
     ctx.strokeRect(4, 4, W - 8, H - 8);
+  }
+
+  // Draw club head detection overlay (live view)
+  drawClubHead(club) {
+    if (!club || club.conf < 0.35) return;
+    const ctx = this.ctx;
+    const W = this.canvas.width, H = this.canvas.height;
+    const cx = club.x * W, cy = club.y * H;
+    const r  = Math.max(8, club.w * W * 0.5);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,200,0,${0.5 + club.conf * 0.5})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.font = '9px system-ui';
+    ctx.fillStyle = '#f5c518';
+    ctx.fillText(`C ${(club.conf * 100).toFixed(0)}%`, cx + r + 3, cy + 4);
   }
 
   // Draw stored frame (JPEG) + skeleton overlay — used in results viewer

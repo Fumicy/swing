@@ -1,8 +1,11 @@
-import { getLM, Smoother } from './utils.js?v=0503-8';
-import { PHASE, THRESH } from './config.js?v=0503-8';
+import { getLM, Smoother } from './utils.js?v=0503-9';
+import { PHASE, THRESH } from './config.js?v=0503-9';
 
-// Phase detection using both-wrist centroid + Euclidean speed + position guards.
+// Phase detection: wrist centroid + Euclidean speed + position guards (primary)
+// When ClubDetector provides results, club head trajectory takes priority for
+// TOP reversal and IMPACT detection.
 // Right-handed golfer, front camera (飛球線後方) assumed.
+
 export class PhaseDetector {
   constructor() {
     this._phase = PHASE.ADDRESS;
@@ -10,48 +13,49 @@ export class PhaseDetector {
     this._dyS = new Smoother(5);
     this._prevWx      = null;
     this._prevWy      = null;
-    this._phaseFrames = 0;   // frames spent in current phase
-    this._moveFrames  = 0;   // consecutive frames above moveStart (ADDRESS)
-    this._peakSpeed   = 0;   // peak Euclidean speed during DOWNSWING
-    this._stoppedFrames = 0; // consecutive slow frames (FOLLOW)
+    this._phaseFrames = 0;
+    this._moveFrames  = 0;
+    this._peakSpeed   = 0;
+    this._stoppedFrames = 0;
 
-    // Address reference: collected from first refFrames of ADDRESS phase
-    this._ref    = null;     // { wristY, shoulderY, hipY }
+    // Address reference (first refFrames ADDRESS frames)
+    this._ref    = null;
     this._refAcc = { wristY:0, shoulderY:0, hipY:0, n:0 };
 
-    this.onPhaseChange = null; // callback(newPhase, prevPhase)
+    // Club head history (last 6 detections, updated every frame club is visible)
+    this._clubYHist = [];
+
+    this.onPhaseChange = null;
   }
 
   get phase() { return this._phase; }
 
-  update(lms) {
+  // club: { x, y, conf } normalized 0-1 (from ClubDetector), or null
+  update(lms, club = null) {
     const lw = getLM(lms, 15), rw = getLM(lms, 16);
     const ls = getLM(lms, 11), rs = getLM(lms, 12);
     const lh = getLM(lms, 23), rh = getLM(lms, 24);
 
-    // Wrist centroid — use whichever wrists are visible
     let wx, wy;
     if      (lw && rw) { wx = (lw.x + rw.x) / 2; wy = (lw.y + rw.y) / 2; }
     else if (lw)       { wx = lw.x; wy = lw.y; }
     else if (rw)       { wx = rw.x; wy = rw.y; }
     else               return this._phase;
 
-    // Current shoulder/hip Y (fall back to ref if landmarks invisible)
     const shoulderY = (ls && rs) ? (ls.y + rs.y) / 2 : (this._ref?.shoulderY ?? 0.35);
     const hipY      = (lh && rh) ? (lh.y + rh.y) / 2 : (this._ref?.hipY     ?? 0.60);
 
-    // Smoothed velocity
     const rawDx = this._prevWx !== null ? wx - this._prevWx : 0;
     const rawDy = this._prevWy !== null ? wy - this._prevWy : 0;
     this._prevWx = wx; this._prevWy = wy;
     const sdx   = this._dxS.push(rawDx);
     const sdy   = this._dyS.push(rawDy);
-    const speed = Math.sqrt(sdx * sdx + sdy * sdy); // Euclidean speed
+    const speed = Math.sqrt(sdx * sdx + sdy * sdy);
 
     const T = THRESH.PHASE;
     this._phaseFrames++;
 
-    // Collect address reference from first refFrames ADDRESS frames
+    // Collect address reference
     if (this._phase === PHASE.ADDRESS && this._ref === null) {
       const a = this._refAcc;
       a.wristY += wy;
@@ -60,77 +64,95 @@ export class PhaseDetector {
       a.n++;
       if (a.n >= T.refFrames) {
         this._ref = {
-          wristY:   a.wristY   / a.n,
+          wristY:    a.wristY    / a.n,
           shoulderY: a.shoulderY / a.n || 0.35,
           hipY:      a.hipY      / a.n || 0.60,
         };
       }
     }
 
+    // Update club head y history (only when confidence is sufficient)
+    if (club && club.conf >= 0.40) {
+      this._clubYHist.push(club.y);
+      if (this._clubYHist.length > 6) this._clubYHist.shift();
+    }
+
     switch (this._phase) {
 
-      // ── ADDRESS ────────────────────────────────────────────────────────────
+      // ── ADDRESS ───────────────────────────────────────────────────────────
       case PHASE.ADDRESS:
-        // Wait for stabilization before monitoring
         if (this._phaseFrames < 10) break;
         if (speed > T.moveStart) {
-          // Require several consecutive fast frames to confirm swing start
           if (++this._moveFrames >= T.moveFrames) this._setPhase(PHASE.BACKSWING);
         } else {
           this._moveFrames = 0;
         }
         break;
 
-      // ── BACKSWING ──────────────────────────────────────────────────────────
+      // ── BACKSWING ─────────────────────────────────────────────────────────
       case PHASE.BACKSWING: {
-        const refWY = this._ref?.wristY ?? hipY;
-        // TOP guard: wrist must have risen above the midpoint between
-        // address-wrist-height and current-shoulder-height.
-        // This prevents premature TOP on mid-backswing slowdowns.
-        const midY  = (shoulderY + refWY) / 2;
-        const risen = wy < midY;
+        // --- Club-based TOP: detect direction reversal in club head y ---
+        // y decreases = club ascending; y increases = descending → reversal = TOP
+        const clubTop = this._detectClubReversal();
 
-        if (speed < T.stopThresh && risen) {
-          this._setPhase(PHASE.TOP);
-        }
-        // Safety: 3 seconds in BACKSWING → force TOP
+        // --- Wrist-based TOP (fallback) ---
+        const refWY    = this._ref?.wristY ?? hipY;
+        const midY     = (shoulderY + refWY) / 2; // halfway between shoulder & address
+        const risen    = wy < midY;
+        const wristTop = speed < T.stopThresh && risen;
+
+        if (clubTop || wristTop) this._setPhase(PHASE.TOP);
+        // Safety: 3 s in backswing → force TOP
         if (this._phaseFrames > 90) this._setPhase(PHASE.TOP);
         break;
       }
 
-      // ── TOP ────────────────────────────────────────────────────────────────
-      case PHASE.TOP:
-        // Downswing starts when wrist moves downward (sdy > 0 in MediaPipe
-        // coords where y increases toward bottom) with meaningful speed
-        if (sdy > T.moveStart * 0.8 && speed > T.moveStart) {
+      // ── TOP ───────────────────────────────────────────────────────────────
+      case PHASE.TOP: {
+        // Club descending → DOWNSWING
+        let clubDescending = false;
+        if (this._clubYHist.length >= 2) {
+          const n = this._clubYHist.length;
+          clubDescending = this._clubYHist[n-1] > this._clubYHist[n-2] + 0.008;
+        }
+        // Wrist moving downward
+        const wristDown = sdy > T.moveStart * 0.8 && speed > T.moveStart;
+
+        if (clubDescending || wristDown) {
           this._setPhase(PHASE.DOWNSWING);
           this._peakSpeed = 0;
         }
-        // Safety: 0.4 s at TOP → force DOWNSWING
         if (this._phaseFrames > 12) {
           this._setPhase(PHASE.DOWNSWING);
           this._peakSpeed = 0;
         }
         break;
+      }
 
       // ── DOWNSWING ─────────────────────────────────────────────────────────
       case PHASE.DOWNSWING: {
         if (speed > this._peakSpeed) this._peakSpeed = speed;
 
         const refWY = this._ref?.wristY ?? hipY;
-        // Primary: wrist returns to impact zone (near address height)
-        const atImpact   = wy > refWY - 0.08 && this._peakSpeed > T.moveStart;
-        // Fallback: speed drops to 25% of peak
-        const speedDropped = this._peakSpeed > T.moveStart * 2 &&
-                             speed < this._peakSpeed * T.finishRatio;
-        if (atImpact || speedDropped) this._setPhase(PHASE.FOLLOW);
+
+        // Club-based impact: club head near ground (y > 0.72) after real downswing
+        const clubImpact = club && club.conf >= 0.40 &&
+                           club.y > 0.72 && this._peakSpeed > T.moveStart;
+
+        // Wrist-based: returns to near address height
+        const wristImpact = wy > refWY - 0.08 && this._peakSpeed > T.moveStart;
+
+        // Speed-drop fallback
+        const speedDrop = this._peakSpeed > T.moveStart * 2 &&
+                          speed < this._peakSpeed * T.finishRatio;
+
+        if (clubImpact || wristImpact || speedDrop) this._setPhase(PHASE.FOLLOW);
         break;
       }
 
-      // ── FOLLOW ─────────────────────────────────────────────────────────────
+      // ── FOLLOW ────────────────────────────────────────────────────────────
       case PHASE.FOLLOW:
         if (speed < T.stopThresh) {
-          // Require sustained stillness before COMPLETE
           if (++this._stoppedFrames >= 6) this._setPhase(PHASE.COMPLETE);
         } else {
           this._stoppedFrames = 0;
@@ -144,12 +166,27 @@ export class PhaseDetector {
     return this._phase;
   }
 
+  // Returns true when the club head y history shows a clear direction reversal
+  // (ascending → descending), indicating the TOP has been reached.
+  _detectClubReversal() {
+    const h = this._clubYHist;
+    if (h.length < 3) return false;
+    const n = h.length;
+    // Look for local minimum in the last 3 values
+    // prev2 > prev (club was ascending) AND curr > prev (now descending)
+    const prev2 = h[n - 3];
+    const prev  = h[n - 2];
+    const curr  = h[n - 1];
+    return prev2 > prev + 0.012 && curr > prev + 0.012;
+  }
+
   _setPhase(p) {
     if (p === this._phase) return;
     const prev = this._phase;
     this._phase = p;
     this._phaseFrames = 0;
     this._stoppedFrames = 0;
+    if (p === PHASE.BACKSWING) this._clubYHist = []; // reset club history for clean tracking
     if (this.onPhaseChange) this.onPhaseChange(p, prev);
   }
 
@@ -161,5 +198,6 @@ export class PhaseDetector {
     this._peakSpeed = 0; this._stoppedFrames = 0;
     this._ref    = null;
     this._refAcc = { wristY:0, shoulderY:0, hipY:0, n:0 };
+    this._clubYHist = [];
   }
 }
