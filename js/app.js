@@ -28,6 +28,7 @@ class App {
     this.stream       = null;
     this.pose         = null;
     this.renderer     = null;
+    this._previewActive = false;
     this.phaseDetector = new PhaseDetector();
     this.analyzer     = new SwingAnalyzer();
 
@@ -143,13 +144,23 @@ class App {
 
   async _startCamera() {
     this._showScreen('framing');
-    const vid = document.getElementById('vid');
-    const cvs = document.getElementById('overlay');
+    const vid    = document.getElementById('vid');
+    const cvs    = document.getElementById('overlay');
+    const banner = document.getElementById('frame-banner');
     this.renderer = new Renderer(cvs);
 
     try {
+      banner.textContent = 'カメラを起動中...';
+      banner.style.color = '#8b949e';
+      document.getElementById('btn-frame-ok').disabled = true;
+
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { frameRate:{ideal:120,min:30}, width:{ideal:1280}, height:{ideal:720} },
+        video: {
+          facingMode: { ideal: 'environment' },
+          frameRate:  { ideal: 30 },
+          width:      { ideal: 1280 },
+          height:     { ideal: 720 },
+        },
         audio: false,
       });
       vid.srcObject = this.stream;
@@ -158,14 +169,42 @@ class App {
       const s = this.stream.getVideoTracks()[0].getSettings();
       this.camFps = s.frameRate || 30;
       document.getElementById('cam-info').textContent =
-        `${s.width}×${s.height} @ ${this.camFps}fps`;
+        `${s.width ?? '?'}×${s.height ?? '?'} @ ${Math.round(this.camFps)}fps`;
+
+      // Show camera preview immediately — before MediaPipe is ready
+      this._startPreviewLoop(vid);
+
+      banner.textContent = '解析エンジンを読み込み中... (初回は10〜30秒かかります)';
+      banner.style.color = '#e3b341';
 
       await this._initPose();
+
+      // Hand off from preview loop to full analysis loop
+      this._previewActive = false;
       this._startLoop();
+
     } catch(e) {
-      alert('カメラのアクセスに失敗しました: ' + e.message);
+      const msg =
+        e.name === 'NotAllowedError' ? 'カメラへのアクセスが拒否されました。\nブラウザの設定でカメラを許可してください。' :
+        e.name === 'NotFoundError'   ? 'カメラが見つかりません。' :
+        `カメラエラー (${e.name}): ${e.message}`;
+      alert(msg);
+      this._previewActive = false;
       this._showScreen('setup');
     }
+  }
+
+  _startPreviewLoop(vid) {
+    this._previewActive = true;
+    const loop = () => {
+      if (!this._previewActive || !this.stream) return;
+      if (vid.videoWidth) {
+        this.renderer.resize(vid.videoWidth, vid.videoHeight);
+        this.renderer.ctx.drawImage(vid, 0, 0, vid.videoWidth, vid.videoHeight);
+      }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
   }
 
   _initPose() {
@@ -559,6 +598,7 @@ class App {
   }
 
   _reset() {
+    this._previewActive = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     if (this.cdTimer) clearInterval(this.cdTimer);
     if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
